@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+    "npm run build:shared",
+    "npm run build:server",
+    "npm run build:client",
+    "npx prisma generate"
+]
+
+[start]
+cmd = "npx prisma db push --accept-data-loss && npm run db:seed && node packages/server/dist/index.js"

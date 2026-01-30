@@ -19,6 +19,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "start:prod": "node packages/server/dist/index.js",
+    "build:prod": "npm run build:shared && npm run build:server && npm run db:generate",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"

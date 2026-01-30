@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import { rulesRouter } from './routes/rules.js';
 import { jobsRouter } from './routes/jobs.js';
@@ -9,6 +11,9 @@ import { discoverRouter } from './routes/discover.js';
 import { statsRouter } from './routes/stats.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sseManager } from './services/sse/sseManager.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize Prisma
 export const prisma = new PrismaClient();
@@ -54,6 +59,15 @@ app.use('/api/jurisdictions', jurisdictionsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/discover', discoverRouter);
 app.use('/api/stats', statsRouter);
+
+// Serve static frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.join(__dirname, '../../../client/dist');
+  app.use(express.static(clientDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 // Global error handler
 app.use(errorHandler);
