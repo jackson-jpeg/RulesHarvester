@@ -8,8 +8,9 @@ export const discoverRouter = Router();
 discoverRouter.get(
   '/:jurisdictionId',
   asyncHandler(async (req, res) => {
+    const jurisdictionId = req.params.jurisdictionId as string;
     const candidates = await prisma.discoveryCandidate.findMany({
-      where: { jurisdictionId: req.params.jurisdictionId },
+      where: { jurisdictionId },
       orderBy: { relevanceScore: 'desc' },
     });
 
@@ -56,8 +57,9 @@ discoverRouter.post(
 discoverRouter.post(
   '/:id/acquire',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const candidate = await prisma.discoveryCandidate.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!candidate) {
@@ -70,7 +72,7 @@ discoverRouter.post(
 
     // Update status to processing
     await prisma.discoveryCandidate.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'PROCESSING' },
     });
 
@@ -94,12 +96,6 @@ discoverRouter.post(
       },
     });
 
-    // Update candidate with reference
-    await prisma.discoveryCandidate.update({
-      where: { id: req.params.id },
-      data: { status: 'PROCESSING' },
-    });
-
     res.json({ success: true, data: { candidate, job } });
   })
 );
@@ -108,8 +104,9 @@ discoverRouter.post(
 discoverRouter.post(
   '/:id/reject',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const candidate = await prisma.discoveryCandidate.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!candidate) {
@@ -117,7 +114,7 @@ discoverRouter.post(
     }
 
     await prisma.discoveryCandidate.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'REJECTED' },
     });
 

@@ -1,21 +1,18 @@
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
-import { validateQuery } from '../middleware/validate.js';
-import { JurisdictionFilterSchema, PaginationQuerySchema } from '@rulesharvester/shared';
-import type { z } from 'zod';
 
 export const jurisdictionsRouter = Router();
 
 // Get all jurisdictions with optional filtering
 jurisdictionsRouter.get(
   '/',
-  validateQuery(PaginationQuerySchema.merge(JurisdictionFilterSchema)),
   asyncHandler(async (req, res) => {
-    const { page, pageSize, type, status, search } = req.query as z.infer<
-      typeof PaginationQuerySchema
-    > &
-      z.infer<typeof JurisdictionFilterSchema>;
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 200);
+    const type = req.query.type as string | undefined;
+    const status = req.query.status as string | undefined;
+    const search = req.query.search as string | undefined;
 
     const where: Record<string, unknown> = {};
 
@@ -27,8 +24,8 @@ jurisdictionsRouter.get(
     }
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { code: { contains: search } },
       ];
     }
 
@@ -38,11 +35,6 @@ jurisdictionsRouter.get(
         orderBy: { name: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: {
-          _count: {
-            select: { rules: true },
-          },
-        },
       }),
       prisma.jurisdiction.count({ where }),
     ]);
@@ -50,10 +42,7 @@ jurisdictionsRouter.get(
     res.json({
       success: true,
       data: {
-        items: jurisdictions.map((j) => ({
-          ...j,
-          ruleCount: j._count.rules,
-        })),
+        items: jurisdictions,
         total,
         page,
         pageSize,
@@ -67,17 +56,15 @@ jurisdictionsRouter.get(
 jurisdictionsRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const jurisdiction = await prisma.jurisdiction.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         parent: true,
         children: true,
         rules: {
           take: 10,
           orderBy: { createdAt: 'desc' },
-        },
-        _count: {
-          select: { rules: true },
         },
       },
     });
@@ -88,10 +75,7 @@ jurisdictionsRouter.get(
 
     res.json({
       success: true,
-      data: {
-        ...jurisdiction,
-        ruleCount: jurisdiction._count.rules,
-      },
+      data: jurisdiction,
     });
   })
 );
@@ -100,10 +84,11 @@ jurisdictionsRouter.get(
 jurisdictionsRouter.patch(
   '/:id/status',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const { status } = req.body;
 
     const jurisdiction = await prisma.jurisdiction.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!jurisdiction) {
@@ -111,7 +96,7 @@ jurisdictionsRouter.patch(
     }
 
     const updated = await prisma.jurisdiction.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         status,
         lastSyncedAt: status === 'SYNCED' ? new Date() : undefined,
@@ -126,10 +111,11 @@ jurisdictionsRouter.patch(
 jurisdictionsRouter.patch(
   '/:id/dna',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const { dna } = req.body;
 
     const jurisdiction = await prisma.jurisdiction.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!jurisdiction) {
@@ -137,8 +123,8 @@ jurisdictionsRouter.patch(
     }
 
     const updated = await prisma.jurisdiction.update({
-      where: { id: req.params.id },
-      data: { dna },
+      where: { id },
+      data: { dna: JSON.stringify(dna) },
     });
 
     res.json({ success: true, data: updated });
@@ -153,26 +139,23 @@ jurisdictionsRouter.get(
       prisma.jurisdiction.findMany({
         where: { type: 'FEDERAL_CIRCUIT' },
         orderBy: { name: 'asc' },
-        include: { _count: { select: { rules: true } } },
       }),
       prisma.jurisdiction.findMany({
         where: { type: 'FEDERAL_DISTRICT' },
         orderBy: { name: 'asc' },
-        include: { _count: { select: { rules: true } } },
       }),
       prisma.jurisdiction.findMany({
         where: { type: 'STATE' },
         orderBy: { name: 'asc' },
-        include: { _count: { select: { rules: true } } },
       }),
     ]);
 
     res.json({
       success: true,
       data: {
-        federalCircuits: circuits.map((j) => ({ ...j, ruleCount: j._count.rules })),
-        federalDistricts: districts.map((j) => ({ ...j, ruleCount: j._count.rules })),
-        states: states.map((j) => ({ ...j, ruleCount: j._count.rules })),
+        federalCircuits: circuits,
+        federalDistricts: districts,
+        states: states,
       },
     });
   })
@@ -182,12 +165,12 @@ jurisdictionsRouter.get(
 jurisdictionsRouter.get(
   '/circuit/:id/districts',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const circuit = await prisma.jurisdiction.findUnique({
-      where: { id: req.params.id, type: 'FEDERAL_CIRCUIT' },
+      where: { id, type: 'FEDERAL_CIRCUIT' },
       include: {
         children: {
           orderBy: { name: 'asc' },
-          include: { _count: { select: { rules: true } } },
         },
       },
     });
@@ -200,7 +183,7 @@ jurisdictionsRouter.get(
       success: true,
       data: {
         circuit,
-        districts: circuit.children.map((d) => ({ ...d, ruleCount: d._count.rules })),
+        districts: circuit.children,
       },
     });
   })

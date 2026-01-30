@@ -1,23 +1,24 @@
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
-import { validateBody, validateQuery } from '../middleware/validate.js';
-import {
-  UpdateRuleRequestSchema,
-  PaginationQuerySchema,
-  RuleFilterSchema,
-} from '@rulesharvester/shared';
-import { z } from 'zod';
+import { validateBody } from '../middleware/validate.js';
+import { UpdateRuleRequestSchema } from '@rulesharvester/shared';
+import type { z } from 'zod';
 
 export const rulesRouter = Router();
 
 // Get all rules with pagination and filtering
 rulesRouter.get(
   '/',
-  validateQuery(PaginationQuerySchema.merge(RuleFilterSchema)),
   asyncHandler(async (req, res) => {
-    const { page, pageSize, sortBy, sortOrder, jurisdictionId, triggerType, minConfidence, search } =
-      req.query as z.infer<typeof PaginationQuerySchema> & z.infer<typeof RuleFilterSchema>;
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
+    const jurisdictionId = req.query.jurisdictionId as string | undefined;
+    const triggerType = req.query.triggerType as string | undefined;
+    const minConfidence = req.query.minConfidence ? parseFloat(req.query.minConfidence as string) : undefined;
+    const search = req.query.search as string | undefined;
 
     const where: Record<string, unknown> = {};
 
@@ -32,8 +33,8 @@ rulesRouter.get(
     }
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { ruleCode: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { ruleCode: { contains: search } },
       ];
     }
 
@@ -41,7 +42,7 @@ rulesRouter.get(
       prisma.rule.findMany({
         where,
         include: { jurisdiction: true },
-        orderBy: { [sortBy || 'createdAt']: sortOrder },
+        orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -65,8 +66,9 @@ rulesRouter.get(
 rulesRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const rule = await prisma.rule.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         jurisdiction: true,
         conflictsAsA: true,
@@ -87,8 +89,9 @@ rulesRouter.patch(
   '/:id',
   validateBody(UpdateRuleRequestSchema),
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const rule = await prisma.rule.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!rule) {
@@ -100,12 +103,12 @@ rulesRouter.patch(
 
     if (body.name !== undefined) updates.name = body.name;
     if (body.triggerType !== undefined) updates.triggerType = body.triggerType;
-    if (body.deadlines !== undefined) updates.deadlines = body.deadlines;
-    if (body.relatedRules !== undefined) updates.relatedRules = body.relatedRules;
+    if (body.deadlines !== undefined) updates.deadlines = JSON.stringify(body.deadlines);
+    if (body.relatedRules !== undefined) updates.relatedRules = JSON.stringify(body.relatedRules);
     if (body.rawText !== undefined) updates.rawText = body.rawText;
 
     // Add audit entry
-    const auditHistory = (rule.auditHistory as unknown[]) || [];
+    const auditHistory = JSON.parse((rule.auditHistory as string) || '[]');
     auditHistory.push({
       id: `audit-${Date.now()}`,
       timestamp: new Date(),
@@ -114,10 +117,10 @@ rulesRouter.patch(
       hash: Buffer.from(JSON.stringify(updates)).toString('base64').slice(0, 16),
       metadata: { fields: Object.keys(updates) },
     });
-    updates.auditHistory = auditHistory;
+    updates.auditHistory = JSON.stringify(auditHistory);
 
     const updated = await prisma.rule.update({
-      where: { id: req.params.id },
+      where: { id },
       data: updates,
       include: { jurisdiction: true },
     });
@@ -130,8 +133,9 @@ rulesRouter.patch(
 rulesRouter.delete(
   '/:id',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const rule = await prisma.rule.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!rule) {
@@ -139,7 +143,7 @@ rulesRouter.delete(
     }
 
     await prisma.rule.delete({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     // Update jurisdiction rule count
@@ -156,8 +160,9 @@ rulesRouter.delete(
 rulesRouter.get(
   '/jurisdiction/:jurisdictionId',
   asyncHandler(async (req, res) => {
+    const jurisdictionId = req.params.jurisdictionId as string;
     const rules = await prisma.rule.findMany({
-      where: { jurisdictionId: req.params.jurisdictionId },
+      where: { jurisdictionId },
       orderBy: { createdAt: 'desc' },
     });
 

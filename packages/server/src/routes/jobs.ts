@@ -30,8 +30,9 @@ jobsRouter.get(
 jobsRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const job = await prisma.extractionJob.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: { jurisdiction: true },
     });
 
@@ -101,8 +102,9 @@ jobsRouter.post(
 jobsRouter.post(
   '/:id/cancel',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const job = await prisma.extractionJob.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!job) {
@@ -114,7 +116,7 @@ jobsRouter.post(
     }
 
     await prisma.extractionJob.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         status: 'FAILED',
         error: 'Cancelled by user',
@@ -130,8 +132,9 @@ jobsRouter.post(
 jobsRouter.post(
   '/:id/retry',
   asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
     const job = await prisma.extractionJob.findUnique({
-      where: { id: req.params.id },
+      where: { id },
     });
 
     if (!job) {
@@ -144,7 +147,7 @@ jobsRouter.post(
 
     // Reset job state
     await prisma.extractionJob.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         status: 'PENDING',
         progress: 0,
@@ -158,8 +161,8 @@ jobsRouter.post(
       jobId: job.id,
       jurisdictionId: job.jurisdictionId,
       jurisdictionCode: job.jurisdictionCode,
-      sourceUrl: job.sourceUrl,
-      rawText: job.rawText,
+      sourceUrl: job.sourceUrl ?? undefined,
+      rawText: job.rawText ?? undefined,
     });
 
     res.json({ success: true, message: 'Job queued for retry' });
