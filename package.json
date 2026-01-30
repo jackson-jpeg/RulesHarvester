@@ -1,0 +1,38 @@
+{
+  "name": "rulesharvester",
+  "version": "2.0.0",
+  "private": true,
+  "description": "AI-powered legal rule extraction system using Claude",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev -w @rulesharvester/client",
+    "dev:server": "npm run dev -w @rulesharvester/server",
+    "build": "npm run build -w @rulesharvester/shared && npm run build -w @rulesharvester/server && npm run build -w @rulesharvester/client",
+    "build:shared": "npm run build -w @rulesharvester/shared",
+    "build:server": "npm run build -w @rulesharvester/server",
+    "build:client": "npm run build -w @rulesharvester/client",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "prisma": "^6.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

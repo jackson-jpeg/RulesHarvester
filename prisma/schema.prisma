@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Jurisdiction entity
+model Jurisdiction {
+  id           String              @id
+  code         String              @unique
+  name         String
+  type         JurisdictionType
+  status       JurisdictionStatus  @default(IDLE)
+  ruleCount    Int                 @default(0)
+  parentId     String?
+  courtWebsite String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  // DNA profile stored as JSON
+  dna Json?
+
+  // Relations
+  parent   Jurisdiction?  @relation("JurisdictionHierarchy", fields: [parentId], references: [id])
+  children Jurisdiction[] @relation("JurisdictionHierarchy")
+  rules    Rule[]
+  jobs     ExtractionJob[]
+
+  @@index([type])
+  @@index([status])
+  @@index([parentId])
+}
+
+// Rule entity
+model Rule {
+  id                   String      @id @default(cuid())
+  ruleCode             String
+  name                 String
+  jurisdictionId       String
+  triggerType          TriggerType
+  sourceUrl            String?
+  rawText              String?
+  confidenceScore      Float       @default(0)
+  extractionReasoning  String?
+  complexity           Int?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  // Stored as JSON
+  deadlines      Json  @default("[]")
+  relatedRules   Json  @default("[]")
+  dna            Json?
+  riskProfile    Json?
+  swarmDebate    Json?
+  auditHistory   Json  @default("[]")
+
+  // Relations
+  jurisdiction Jurisdiction @relation(fields: [jurisdictionId], references: [id])
+
+  // Conflicts where this rule is ruleA
+  conflictsAsA RuleConflict[] @relation("ConflictRuleA")
+  // Conflicts where this rule is ruleB
+  conflictsAsB RuleConflict[] @relation("ConflictRuleB")
+
+  @@unique([ruleCode, jurisdictionId])
+  @@index([jurisdictionId])
+  @@index([triggerType])
+  @@index([createdAt])
+}
+
+// Extraction job entity
+model ExtractionJob {
+  id               String    @id @default(cuid())
+  jurisdictionId   String
+  jurisdictionCode String
+  status           JobStatus @default(PENDING)
+  sourceUrl        String?
+  rawText          String?
+  progress         Int       @default(0)
+  agentConsensus   Float?
+  currentStep      String?
+  error            String?
+  ruleId           String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  jurisdiction Jurisdiction @relation(fields: [jurisdictionId], references: [id])
+
+  @@index([status])
+  @@index([jurisdictionId])
+  @@index([createdAt])
+}
+
+// Rule conflict entity
+model RuleConflict {
+  id                         String         @id @default(cuid())
+  ruleAId                    String
+  ruleBId                    String
+  ruleACode                  String
+  ruleBCode                  String
+  discrepancy                String
+  aiResolutionRecommendation String
+  status                     ConflictStatus @default(UNRESOLVED)
+  resolvedAt                 DateTime?
+  resolvedBy                 String?
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+
+  // Relations
+  ruleA Rule @relation("ConflictRuleA", fields: [ruleAId], references: [id])
+  ruleB Rule @relation("ConflictRuleB", fields: [ruleBId], references: [id])
+
+  @@index([status])
+  @@index([ruleAId])
+  @@index([ruleBId])
+}
+
+// Discovery candidate entity
+model DiscoveryCandidate {
+  id             String          @id @default(cuid())
+  ruleId         String
+  jurisdiction   String
+  jurisdictionId String
+  snippet        String
+  sourceUrl      String
+  relevanceScore Float           @default(0)
+  status         DiscoveryStatus @default(DISCOVERED)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([jurisdictionId])
+  @@index([status])
+}
+
+// System log entity
+model SystemLog {
+  id        String   @id @default(cuid())
+  message   String
+  type      LogType  @default(INFO)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Enums
+enum JurisdictionType {
+  FEDERAL_CIRCUIT
+  FEDERAL_DISTRICT
+  STATE
+}
+
+enum JurisdictionStatus {
+  IDLE
+  SEARCHING
+  HARVESTING
+  SYNCED
+  FAILED
+  UPDATING
+}
+
+enum TriggerType {
+  MOTION_FILED
+  SERVICE_OF_PROCESS
+  COMPLAINT_FILED
+  NOTICE_OF_APPEAL
+  HEARING_SCHEDULED
+  ORDER_ENTERED
+  DISCOVERY_REQUEST
+  SUBPOENA_ISSUED
+  JUDGMENT_ENTERED
+  DEFAULT_ENTERED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  VERIFYING
+  COMPLETED
+  FAILED
+  FLAGGED
+  DELTA_DETECTED
+  ANALYZING_DNA
+  RESOLVING_CONFLICTS
+}
+
+enum ConflictStatus {
+  UNRESOLVED
+  RESOLVED
+  MANUAL_OVERRIDE
+}
+
+enum DiscoveryStatus {
+  DISCOVERED
+  PROCESSING
+  ACQUIRED
+  REJECTED
+}
+
+enum LogType {
+  INFO
+  WARN
+  SUCCESS
+  AI
+  ERROR
+}

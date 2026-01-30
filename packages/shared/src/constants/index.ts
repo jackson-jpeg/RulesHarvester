@@ -1,0 +1,109 @@
+export * from './jurisdictions.js';
+
+// AI Agent personas
+export const AI_AGENTS = [
+  {
+    id: 'agent-formalist',
+    persona: 'Formalist' as const,
+    description: 'Focuses on strict textual interpretation and procedural requirements',
+  },
+  {
+    id: 'agent-analyst',
+    persona: 'Analyst' as const,
+    description: 'Emphasizes practical implications and strategic considerations',
+  },
+  {
+    id: 'agent-historian',
+    persona: 'Historian' as const,
+    description: 'Considers historical context and precedent evolution',
+  },
+];
+
+// Trigger type display labels
+export const TRIGGER_TYPE_LABELS: Record<string, string> = {
+  MOTION_FILED: 'Motion Filed',
+  SERVICE_OF_PROCESS: 'Service of Process',
+  COMPLAINT_FILED: 'Complaint Filed',
+  NOTICE_OF_APPEAL: 'Notice of Appeal',
+  HEARING_SCHEDULED: 'Hearing Scheduled',
+  ORDER_ENTERED: 'Order Entered',
+  DISCOVERY_REQUEST: 'Discovery Request',
+  SUBPOENA_ISSUED: 'Subpoena Issued',
+  JUDGMENT_ENTERED: 'Judgment Entered',
+  DEFAULT_ENTERED: 'Default Entered',
+};
+
+// Deadline priority colors
+export const PRIORITY_COLORS = {
+  STANDARD: { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
+  URGENT: { bg: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500' },
+  FATAL: { bg: 'bg-rose-500', text: 'text-rose-500', border: 'border-rose-500' },
+};
+
+// Job status display config
+export const JOB_STATUS_CONFIG = {
+  pending: { label: 'Pending', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
+  processing: { label: 'Processing', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
+  verifying: { label: 'Verifying', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
+  completed: { label: 'Completed', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
+  failed: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
+  flagged: { label: 'Flagged', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
+  delta_detected: { label: 'Delta Detected', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+  analyzing_dna: { label: 'Analyzing DNA', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
+  resolving_conflicts: { label: 'Resolving Conflicts', color: 'text-pink-400', bgColor: 'bg-pink-500/20' },
+};
+
+// Jurisdiction status display config
+export const JURISDICTION_STATUS_CONFIG = {
+  idle: { label: 'Idle', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
+  searching: { label: 'Searching', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
+  harvesting: { label: 'Harvesting', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
+  synced: { label: 'Synced', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
+  failed: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
+  updating: { label: 'Updating', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
+};
+
+// API endpoints
+export const API_ENDPOINTS = {
+  // Rules
+  RULES: '/api/rules',
+  RULE_BY_ID: (id: string) => `/api/rules/${id}`,
+
+  // Jobs
+  JOBS: '/api/jobs',
+  JOB_BY_ID: (id: string) => `/api/jobs/${id}`,
+  JOB_EVENTS: '/api/jobs/events',
+
+  // Jurisdictions
+  JURISDICTIONS: '/api/jurisdictions',
+  JURISDICTION_BY_ID: (id: string) => `/api/jurisdictions/${id}`,
+
+  // Discovery
+  DISCOVER: '/api/discover',
+  ACQUIRE: '/api/acquire',
+
+  // AI operations
+  EXTRACT: '/api/ai/extract',
+  DEBATE: '/api/ai/debate',
+  DNA: '/api/ai/dna',
+  RISK: '/api/ai/risk',
+  CONFLICTS: '/api/ai/conflicts',
+
+  // Export
+  EXPORT: '/api/export',
+
+  // Stats
+  STATS: '/api/stats',
+};
+
+// Default pagination
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
+// System limits
+export const MAX_LOG_ENTRIES = 50;
+export const MAX_CONCURRENT_JOBS = 5;
+
+// Claude model configuration
+export const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+export const CLAUDE_MAX_TOKENS = 4096;
