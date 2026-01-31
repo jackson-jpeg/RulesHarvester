@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -6,18 +6,58 @@ import { Select } from '../ui/Select';
 import { Badge } from '../ui/Badge';
 import { useUIStore } from '../../store/uiStore';
 
+const SETTINGS_KEY = 'rulesharvester-settings';
+
+interface AppSettings {
+  maxConcurrentJobs: number;
+  confidenceThreshold: number;
+  autoRetryFailed: boolean;
+  enableDebugLogs: boolean;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  maxConcurrentJobs: 3,
+  confidenceThreshold: 70,
+  autoRetryFailed: true,
+  enableDebugLogs: false,
+};
+
+function loadSettings(): AppSettings {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return DEFAULT_SETTINGS;
+}
+
+function saveSettings(settings: AppSettings): void {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
 export function SettingsView() {
   const { isAutoHarvesting, setAutoHarvesting, clearLogs, addLog } = useUIStore();
 
-  const [settings, setSettings] = useState({
-    maxConcurrentJobs: 3,
-    confidenceThreshold: 70,
-    autoRetryFailed: true,
-    enableDebugLogs: false,
-  });
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Load settings on mount
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
+
+  // Track changes
+  const updateSettings = (updates: Partial<AppSettings>) => {
+    setSettings((prev) => ({ ...prev, ...updates }));
+    setHasChanges(true);
+  };
 
   const handleSave = () => {
-    // Would save to backend/localStorage
+    saveSettings(settings);
+    setHasChanges(false);
     addLog('Settings saved', 'success');
   };
 
@@ -70,7 +110,7 @@ export function SettingsView() {
               type="number"
               value={settings.maxConcurrentJobs}
               onChange={(e) =>
-                setSettings({ ...settings, maxConcurrentJobs: parseInt(e.target.value) })
+                updateSettings({ maxConcurrentJobs: parseInt(e.target.value) || 1 })
               }
               helperText="Maximum number of extraction jobs running simultaneously"
             />
@@ -80,7 +120,7 @@ export function SettingsView() {
               type="number"
               value={settings.confidenceThreshold}
               onChange={(e) =>
-                setSettings({ ...settings, confidenceThreshold: parseInt(e.target.value) })
+                updateSettings({ confidenceThreshold: parseInt(e.target.value) || 0 })
               }
               helperText="Rules below this threshold will be flagged for review"
             />
@@ -94,7 +134,7 @@ export function SettingsView() {
               </div>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, autoRetryFailed: !settings.autoRetryFailed })
+                  updateSettings({ autoRetryFailed: !settings.autoRetryFailed })
                 }
                 className={`
                   relative w-12 h-6 rounded-full transition-colors
@@ -152,7 +192,7 @@ export function SettingsView() {
               </div>
               <button
                 onClick={() =>
-                  setSettings({ ...settings, enableDebugLogs: !settings.enableDebugLogs })
+                  updateSettings({ enableDebugLogs: !settings.enableDebugLogs })
                 }
                 className={`
                   relative w-12 h-6 rounded-full transition-colors
@@ -194,8 +234,13 @@ export function SettingsView() {
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave}>Save Settings</Button>
+      <div className="flex justify-end gap-2 items-center">
+        {hasChanges && (
+          <span className="text-sm text-amber-400">Unsaved changes</span>
+        )}
+        <Button onClick={handleSave} disabled={!hasChanges}>
+          Save Settings
+        </Button>
       </div>
     </div>
   );

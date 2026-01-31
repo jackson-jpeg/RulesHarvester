@@ -19,11 +19,11 @@ export function ConflictView() {
   const fetchConflicts = async () => {
     setLoading(true);
     try {
-      // For now, we'll get conflicts from rules
-      // In a full implementation, there would be a dedicated conflicts endpoint
-      setConflicts([]);
+      const response = await api.get<{ items: RuleConflict[] }>('/conflicts');
+      setConflicts(response.items || []);
     } catch (error) {
       addLog('Failed to fetch conflicts', 'error');
+      setConflicts([]);
     } finally {
       setLoading(false);
     }
@@ -31,7 +31,8 @@ export function ConflictView() {
 
   const handleResolve = async (conflictId: string, resolution: 'accept' | 'override') => {
     try {
-      // Would call API to resolve conflict
+      const endpoint = resolution === 'accept' ? `/conflicts/${conflictId}/resolve` : `/conflicts/${conflictId}/override`;
+      await api.post(endpoint, { resolvedBy: 'user' });
       setConflicts((prev) => prev.filter((c) => c.id !== conflictId));
       addLog(`Conflict ${resolution === 'accept' ? 'accepted' : 'overridden'}`, 'success');
     } catch (error) {

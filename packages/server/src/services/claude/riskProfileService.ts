@@ -1,4 +1,5 @@
 import { anthropic, defaultModelConfig, SYSTEM_PROMPTS, extractToolResult } from './client.js';
+import { withRetry } from '../../utils/retry.js';
 import type { TacticalRiskProfile } from '@rulesharvester/shared';
 
 const RISK_TOOL = {
@@ -52,19 +53,21 @@ ${deadlineInfo ? `\nDeadlines:\n${deadlineInfo}` : ''}
 ${rule.rawText ? `\nFull text:\n${rule.rawText}` : ''}
     `.trim();
 
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      max_tokens: 2048,
-      system: SYSTEM_PROMPTS.riskProfile,
-      messages: [
-        {
-          role: 'user',
-          content: `Assess the tactical risk profile for compliance with:\n\n${context}`,
-        },
-      ],
-      tools: [RISK_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_risk_profile' },
-    });
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        max_tokens: 2048,
+        system: SYSTEM_PROMPTS.riskProfile,
+        messages: [
+          {
+            role: 'user',
+            content: `Assess the tactical risk profile for compliance with:\n\n${context}`,
+          },
+        ],
+        tools: [RISK_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_risk_profile' },
+      })
+    );
 
     const result = extractToolResult<TacticalRiskProfile>(response, 'submit_risk_profile');
 

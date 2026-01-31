@@ -1,4 +1,5 @@
 import { anthropic, defaultModelConfig, SYSTEM_PROMPTS, extractToolResult } from './client.js';
+import { withRetry } from '../../utils/retry.js';
 import type { SwarmDebate, AgentCritique } from '@rulesharvester/shared';
 
 const DEBATE_TOOL = {
@@ -62,19 +63,21 @@ const DEBATE_TOOL = {
 
 class SwarmDebateService {
   async generateDebate(ruleText: string, ruleCode?: string): Promise<SwarmDebate> {
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPTS.swarmDebate,
-      messages: [
-        {
-          role: 'user',
-          content: `Analyze this procedural rule through the lens of three legal expert personas. ${ruleCode ? `Rule: ${ruleCode}` : ''}\n\n---\n\n${ruleText}`,
-        },
-      ],
-      tools: [DEBATE_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_debate' },
-    });
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPTS.swarmDebate,
+        messages: [
+          {
+            role: 'user',
+            content: `Analyze this procedural rule through the lens of three legal expert personas. ${ruleCode ? `Rule: ${ruleCode}` : ''}\n\n---\n\n${ruleText}`,
+          },
+        ],
+        tools: [DEBATE_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_debate' },
+      })
+    );
 
     const result = extractToolResult<{
       debateSummary: string;

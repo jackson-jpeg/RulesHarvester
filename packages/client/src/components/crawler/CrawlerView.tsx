@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useJobsStore } from '../../store/jobsStore';
 import { useUIStore } from '../../store/uiStore';
+import { api } from '../../api/client';
 
 export function CrawlerView() {
   const { jurisdictions, groupedJurisdictions } = useJurisdictionsStore();
@@ -14,6 +15,8 @@ export function CrawlerView() {
   const { addLog } = useUIStore();
 
   const [selectedJurisdiction, setSelectedJurisdiction] = useState('');
+  const [selectedJurisdictions, setSelectedJurisdictions] = useState<Set<string>>(new Set());
+  const [isBulkMode, setIsBulkMode] = useState(false);
   const [sourceUrl, setSourceUrl] = useState('');
   const [rawText, setRawText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,29 +26,72 @@ export function CrawlerView() {
     label: `${j.name} (${j.code})`,
   }));
 
+  const toggleJurisdictionSelection = (jurisdictionId: string) => {
+    setSelectedJurisdictions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(jurisdictionId)) {
+        newSet.delete(jurisdictionId);
+      } else {
+        newSet.add(jurisdictionId);
+      }
+      return newSet;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedJurisdiction) {
-      addLog('Please select a jurisdiction', 'warn');
-      return;
-    }
+    if (isBulkMode) {
+      // Bulk extraction
+      if (selectedJurisdictions.size === 0) {
+        addLog('Please select at least one jurisdiction', 'warn');
+        return;
+      }
 
-    if (!sourceUrl && !rawText) {
-      addLog('Please provide a source URL or paste rule text', 'warn');
-      return;
-    }
+      if (!sourceUrl && !rawText) {
+        addLog('Please provide a source URL or paste rule text', 'warn');
+        return;
+      }
 
-    setIsSubmitting(true);
-    try {
-      await createJob(selectedJurisdiction, sourceUrl || 'manual-entry', rawText || undefined);
-      addLog(`Extraction job created for ${selectedJurisdiction}`, 'success');
-      setSourceUrl('');
-      setRawText('');
-    } catch (error) {
-      addLog(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-    } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(true);
+      try {
+        const result = await api.post<{ jobsCreated: number }>('/bulk/extract', {
+          jurisdictionIds: Array.from(selectedJurisdictions),
+          sourceUrl: sourceUrl || undefined,
+          rawText: rawText || undefined,
+        });
+        addLog(`Created ${result.jobsCreated} extraction jobs`, 'success');
+        setSourceUrl('');
+        setRawText('');
+        setSelectedJurisdictions(new Set());
+      } catch (error) {
+        addLog(`Failed to create bulk jobs: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Single extraction
+      if (!selectedJurisdiction) {
+        addLog('Please select a jurisdiction', 'warn');
+        return;
+      }
+
+      if (!sourceUrl && !rawText) {
+        addLog('Please provide a source URL or paste rule text', 'warn');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        await createJob(selectedJurisdiction, sourceUrl || 'manual-entry', rawText || undefined);
+        addLog(`Extraction job created for ${selectedJurisdiction}`, 'success');
+        setSourceUrl('');
+        setRawText('');
+      } catch (error) {
+        addLog(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -60,16 +106,63 @@ export function CrawlerView() {
       <div className="grid grid-cols-12 gap-6">
         {/* Extraction Form */}
         <Card className="col-span-12 lg:col-span-6">
-          <CardHeader>New Extraction</CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <span>New Extraction</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkMode(!isBulkMode);
+                  setSelectedJurisdictions(new Set());
+                  setSelectedJurisdiction('');
+                }}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  isBulkMode
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-surface-elevated text-text-secondary hover:bg-border'
+                }`}
+              >
+                {isBulkMode ? 'Bulk Mode' : 'Single Mode'}
+              </button>
+            </div>
+          </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Select
-                label="Jurisdiction"
-                options={jurisdictionOptions}
-                placeholder="Select a jurisdiction..."
-                value={selectedJurisdiction}
-                onChange={(e) => setSelectedJurisdiction(e.target.value)}
-              />
+              {isBulkMode ? (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Selected Jurisdictions ({selectedJurisdictions.size})
+                  </label>
+                  <div className="p-3 bg-surface-elevated rounded-lg min-h-[42px]">
+                    {selectedJurisdictions.size === 0 ? (
+                      <span className="text-text-muted text-sm">Click jurisdictions below to select...</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {Array.from(selectedJurisdictions).map((id) => {
+                          const j = jurisdictions.find((j) => j.id === id);
+                          return j ? (
+                            <button
+                              key={id}
+                              onClick={() => toggleJurisdictionSelection(id)}
+                              className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 cursor-pointer"
+                            >
+                              {j.code} ×
+                            </button>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <Select
+                  label="Jurisdiction"
+                  options={jurisdictionOptions}
+                  placeholder="Select a jurisdiction..."
+                  value={selectedJurisdiction}
+                  onChange={(e) => setSelectedJurisdiction(e.target.value)}
+                />
+              )}
 
               <Input
                 label="Source URL"
@@ -98,7 +191,9 @@ export function CrawlerView() {
               />
 
               <Button type="submit" isLoading={isSubmitting} className="w-full">
-                Launch Extraction
+                {isBulkMode
+                  ? `Launch Bulk Extraction (${selectedJurisdictions.size})`
+                  : 'Launch Extraction'}
               </Button>
             </form>
           </CardContent>
@@ -117,9 +212,9 @@ export function CrawlerView() {
                     {groupedJurisdictions?.federalCircuits.map((j) => (
                       <button
                         key={j.id}
-                        onClick={() => setSelectedJurisdiction(j.id)}
+                        onClick={() => isBulkMode ? toggleJurisdictionSelection(j.id) : setSelectedJurisdiction(j.id)}
                         className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                          selectedJurisdiction === j.id
+                          (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                             ? 'bg-amber-500 text-black'
                             : j.status === 'synced'
                             ? 'bg-emerald-500/20 text-emerald-400'
@@ -141,9 +236,9 @@ export function CrawlerView() {
                     {groupedJurisdictions?.federalDistricts.slice(0, 12).map((j) => (
                       <button
                         key={j.id}
-                        onClick={() => setSelectedJurisdiction(j.id)}
+                        onClick={() => isBulkMode ? toggleJurisdictionSelection(j.id) : setSelectedJurisdiction(j.id)}
                         className={`px-2 py-1 rounded text-xs transition-colors ${
-                          selectedJurisdiction === j.id
+                          (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                             ? 'bg-amber-500 text-black'
                             : j.status === 'synced'
                             ? 'bg-emerald-500/20 text-emerald-400'
@@ -172,9 +267,9 @@ export function CrawlerView() {
                 {groupedJurisdictions?.states.map((j) => (
                   <button
                     key={j.id}
-                    onClick={() => setSelectedJurisdiction(j.id)}
+                    onClick={() => isBulkMode ? toggleJurisdictionSelection(j.id) : setSelectedJurisdiction(j.id)}
                     className={`px-2 py-1 rounded text-xs transition-colors ${
-                      selectedJurisdiction === j.id
+                      (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                         ? 'bg-amber-500 text-black'
                         : j.status === 'synced'
                         ? 'bg-emerald-500/20 text-emerald-400'

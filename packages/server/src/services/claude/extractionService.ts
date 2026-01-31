@@ -1,4 +1,5 @@
 import { anthropic, defaultModelConfig, SYSTEM_PROMPTS, extractToolResult } from './client.js';
+import { withRetry } from '../../utils/retry.js';
 import type { ExtractionResult, TriggerType, DeadlinePriority } from '@rulesharvester/shared';
 
 const EXTRACTION_TOOL = {
@@ -113,18 +114,20 @@ const COMPLEXITY_TOOL = {
 
 class ExtractionService {
   async extractRule(ruleText: string, jurisdictionId: string): Promise<ExtractionResult> {
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      system: SYSTEM_PROMPTS.extraction,
-      messages: [
-        {
-          role: 'user',
-          content: `Extract structured data from this legal rule text. The rule is from jurisdiction: ${jurisdictionId}\n\n---\n\n${ruleText}`,
-        },
-      ],
-      tools: [EXTRACTION_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_extraction' },
-    });
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        system: SYSTEM_PROMPTS.extraction,
+        messages: [
+          {
+            role: 'user',
+            content: `Extract structured data from this legal rule text. The rule is from jurisdiction: ${jurisdictionId}\n\n---\n\n${ruleText}`,
+          },
+        ],
+        tools: [EXTRACTION_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_extraction' },
+      })
+    );
 
     const result = extractToolResult<ExtractionResult>(response, 'submit_extraction');
 
@@ -147,10 +150,11 @@ class ExtractionService {
   }
 
   async assessComplexity(text: string): Promise<{ score: number; rationale: string }> {
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      max_tokens: 1024,
-      system: `You are a legal complexity analyst. Rate the procedural complexity of rules on a scale of 1-10.
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        max_tokens: 1024,
+        system: `You are a legal complexity analyst. Rate the procedural complexity of rules on a scale of 1-10.
 
 Consider:
 - Number of conditions and exceptions
@@ -158,15 +162,16 @@ Consider:
 - Cross-references to other rules
 - Ambiguity in language
 - Practical difficulty of compliance`,
-      messages: [
-        {
-          role: 'user',
-          content: `Assess the complexity of this legal rule text:\n\n${text}`,
-        },
-      ],
-      tools: [COMPLEXITY_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_complexity' },
-    });
+        messages: [
+          {
+            role: 'user',
+            content: `Assess the complexity of this legal rule text:\n\n${text}`,
+          },
+        ],
+        tools: [COMPLEXITY_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_complexity' },
+      })
+    );
 
     const result = extractToolResult<{ score: number; rationale: string }>(
       response,

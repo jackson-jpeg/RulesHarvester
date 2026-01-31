@@ -1,4 +1,5 @@
 import { anthropic, defaultModelConfig, SYSTEM_PROMPTS, extractToolResult } from './client.js';
+import { withRetry } from '../../utils/retry.js';
 import type { RuleConflict, ConflictStatus } from '@rulesharvester/shared';
 
 const CONFLICT_TOOL = {
@@ -60,14 +61,15 @@ class ConflictResolutionService {
     appellateWarnings: string[];
     authorityStatus: 'valid' | 'superseded' | 'contested';
   }> {
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      max_tokens: 2048,
-      system: SYSTEM_PROMPTS.conflictResolution,
-      messages: [
-        {
-          role: 'user',
-          content: `Compare these two rules and identify any conflicts:
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        max_tokens: 2048,
+        system: SYSTEM_PROMPTS.conflictResolution,
+        messages: [
+          {
+            role: 'user',
+            content: `Compare these two rules and identify any conflicts:
 
 PRIMARY RULE (${primaryRule.ruleCode}):
 ${primaryRule.name}
@@ -76,11 +78,12 @@ ${primaryRule.rawText || '(No text available)'}
 AUTHORITY RULE (${authorityRule.ruleCode}):
 ${authorityRule.name}
 ${authorityRule.rawText || '(No text available)'}`,
-        },
-      ],
-      tools: [CONFLICT_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_conflicts' },
-    });
+          },
+        ],
+        tools: [CONFLICT_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_conflicts' },
+      })
+    );
 
     const result = extractToolResult<{
       conflicts: Array<{

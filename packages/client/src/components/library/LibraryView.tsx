@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,6 +7,7 @@ import { Badge } from '../ui/Badge';
 import { Skeleton } from '../ui/Spinner';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
+import { api } from '../../api/client';
 import { TRIGGER_TYPE_LABELS } from '@rulesharvester/shared';
 import type { RuleTemplate } from '@rulesharvester/shared';
 
@@ -25,11 +26,19 @@ export function LibraryView() {
     setFilters,
     setPage,
   } = useRulesStore();
-  const { setActiveTab } = useUIStore();
+  const { setActiveTab, addLog } = useUIStore();
+
+  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
+  const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
 
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  // Clear selections when rules change
+  useEffect(() => {
+    setSelectedRuleIds(new Set());
+  }, [rules]);
 
   const handleRuleClick = (rule: RuleTemplate) => {
     useRulesStore.setState({ selectedRule: rule });
@@ -42,6 +51,47 @@ export function LibraryView() {
 
   const handleTriggerFilter = (triggerType: string) => {
     setFilters({ ...filters, triggerType: triggerType || undefined });
+  };
+
+  const toggleRuleSelection = (ruleId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedRuleIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(ruleId)) {
+        newSet.delete(ruleId);
+      } else {
+        newSet.add(ruleId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllRules = () => {
+    if (selectedRuleIds.size === rules.length) {
+      setSelectedRuleIds(new Set());
+    } else {
+      setSelectedRuleIds(new Set(rules.map((r) => r.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedRuleIds.size === 0) return;
+
+    if (!window.confirm(`Delete ${selectedRuleIds.size} selected rules? This cannot be undone.`)) {
+      return;
+    }
+
+    setIsBulkActionLoading(true);
+    try {
+      await api.delete('/bulk/rules', { ruleIds: Array.from(selectedRuleIds) });
+      addLog(`Deleted ${selectedRuleIds.size} rules`, 'success');
+      setSelectedRuleIds(new Set());
+      fetchRules();
+    } catch (error) {
+      addLog('Failed to delete rules', 'error');
+    } finally {
+      setIsBulkActionLoading(false);
+    }
   };
 
   return (
@@ -82,6 +132,57 @@ export function LibraryView() {
         </CardContent>
       </Card>
 
+      {/* Bulk Actions Toolbar */}
+      {rules.length > 0 && (
+        <Card padding="sm">
+          <CardContent className="flex items-center gap-4">
+            <button
+              onClick={selectAllRules}
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                selectedRuleIds.size === rules.length && rules.length > 0
+                  ? 'bg-amber-500 border-amber-500'
+                  : selectedRuleIds.size > 0
+                  ? 'bg-amber-500/50 border-amber-500'
+                  : 'border-border hover:border-text-secondary'
+              }`}
+            >
+              {selectedRuleIds.size > 0 && (
+                <svg className="w-3 h-3 text-black" viewBox="0 0 12 12">
+                  <path
+                    d={selectedRuleIds.size === rules.length
+                      ? "M10 3L4.5 8.5L2 6"
+                      : "M2 6h8"
+                    }
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                </svg>
+              )}
+            </button>
+            <span className="text-sm text-text-secondary">
+              {selectedRuleIds.size > 0
+                ? `${selectedRuleIds.size} selected`
+                : 'Select all'}
+            </span>
+
+            {selectedRuleIds.size > 0 && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  isLoading={isBulkActionLoading}
+                >
+                  Delete Selected
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Rules Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -109,6 +210,8 @@ export function LibraryView() {
               <RuleCard
                 key={rule.id}
                 rule={rule}
+                isSelected={selectedRuleIds.has(rule.id)}
+                onSelect={(e) => toggleRuleSelection(rule.id, e)}
                 onClick={() => handleRuleClick(rule)}
               />
             ))}
@@ -146,17 +249,40 @@ export function LibraryView() {
 
 interface RuleCardProps {
   rule: RuleTemplate;
+  isSelected: boolean;
+  onSelect: (e: React.MouseEvent) => void;
   onClick: () => void;
 }
 
-function RuleCard({ rule, onClick }: RuleCardProps) {
+function RuleCard({ rule, isSelected, onSelect, onClick }: RuleCardProps) {
   const triggerLabel = TRIGGER_TYPE_LABELS[rule.triggerType] || rule.triggerType;
 
   return (
-    <Card hover onClick={onClick} className="cursor-pointer">
+    <Card hover onClick={onClick} className={`cursor-pointer ${isSelected ? 'ring-2 ring-amber-500' : ''}`}>
       <CardContent>
         <div className="flex items-start justify-between mb-2">
-          <Badge variant="info">{rule.ruleCode}</Badge>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onSelect}
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                isSelected
+                  ? 'bg-amber-500 border-amber-500'
+                  : 'border-border hover:border-text-secondary'
+              }`}
+            >
+              {isSelected && (
+                <svg className="w-2.5 h-2.5 text-black" viewBox="0 0 12 12">
+                  <path
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    d="M10 3L4.5 8.5L2 6"
+                  />
+                </svg>
+              )}
+            </button>
+            <Badge variant="info">{rule.ruleCode}</Badge>
+          </div>
           <Badge
             variant={
               rule.confidenceScore >= 80

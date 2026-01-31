@@ -1,9 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS } from '@rulesharvester/shared';
 
-// Initialize Anthropic client
+// Initialize Anthropic client with 2 minute timeout
 export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 120000, // 2 minute timeout for long extractions
 });
 
 export const defaultModelConfig = {

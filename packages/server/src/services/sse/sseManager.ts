@@ -1,13 +1,50 @@
 import type { Response } from 'express';
 import type { SSEEvent, JobProgressEvent, JobCompletedEvent } from '@rulesharvester/shared';
 
+interface ClientInfo {
+  response: Response;
+  lastActivity: number;
+}
+
 class SSEManager {
-  private clients: Map<string, Response> = new Map();
+  private clients: Map<string, ClientInfo> = new Map();
   private clientCounter = 0;
+  private cleanupInterval: NodeJS.Timeout | null = null;
+  private readonly STALE_TIMEOUT_MS = 60000; // 60 seconds
+
+  constructor() {
+    // Start cleanup interval to remove stale clients
+    this.startCleanupInterval();
+  }
+
+  private startCleanupInterval(): void {
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupStaleClients();
+    }, 30000); // Check every 30 seconds
+  }
+
+  private cleanupStaleClients(): void {
+    const now = Date.now();
+    const staleClientIds: string[] = [];
+
+    for (const [clientId, info] of this.clients) {
+      if (now - info.lastActivity > this.STALE_TIMEOUT_MS) {
+        staleClientIds.push(clientId);
+      }
+    }
+
+    for (const clientId of staleClientIds) {
+      console.log(`Removing stale SSE client: ${clientId}`);
+      this.removeClient(clientId);
+    }
+  }
 
   addClient(res: Response): string {
     const clientId = `client-${++this.clientCounter}-${Date.now()}`;
-    this.clients.set(clientId, res);
+    this.clients.set(clientId, {
+      response: res,
+      lastActivity: Date.now(),
+    });
     console.log(`SSE client connected: ${clientId} (total: ${this.clients.size})`);
     return clientId;
   }
@@ -17,11 +54,19 @@ class SSEManager {
     console.log(`SSE client disconnected: ${clientId} (total: ${this.clients.size})`);
   }
 
+  updateClientActivity(clientId: string): void {
+    const client = this.clients.get(clientId);
+    if (client) {
+      client.lastActivity = Date.now();
+    }
+  }
+
   broadcast(event: SSEEvent): void {
     const data = JSON.stringify(event);
-    for (const [clientId, res] of this.clients) {
+    for (const [clientId, info] of this.clients) {
       try {
-        res.write(`data: ${data}\n\n`);
+        info.response.write(`data: ${data}\n\n`);
+        info.lastActivity = Date.now();
       } catch (error) {
         console.error(`Failed to send to client ${clientId}:`, error);
         this.removeClient(clientId);

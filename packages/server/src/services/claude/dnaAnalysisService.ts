@@ -1,4 +1,5 @@
 import { anthropic, defaultModelConfig, SYSTEM_PROMPTS, extractToolResult } from './client.js';
+import { withRetry } from '../../utils/retry.js';
 import type { JurisdictionDNA } from '@rulesharvester/shared';
 
 const DNA_TOOL = {
@@ -46,19 +47,21 @@ class DNAAnalysisService {
         ? `\n\nSample rules from this jurisdiction:\n${sampleRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
         : '';
 
-    const response = await anthropic.messages.create({
-      ...defaultModelConfig,
-      max_tokens: 2048,
-      system: SYSTEM_PROMPTS.dnaAnalysis,
-      messages: [
-        {
-          role: 'user',
-          content: `Profile the procedural characteristics of: ${jurisdictionName}${rulesContext}`,
-        },
-      ],
-      tools: [DNA_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_dna_profile' },
-    });
+    const response = await withRetry(() =>
+      anthropic.messages.create({
+        ...defaultModelConfig,
+        max_tokens: 2048,
+        system: SYSTEM_PROMPTS.dnaAnalysis,
+        messages: [
+          {
+            role: 'user',
+            content: `Profile the procedural characteristics of: ${jurisdictionName}${rulesContext}`,
+          },
+        ],
+        tools: [DNA_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_dna_profile' },
+      })
+    );
 
     const result = extractToolResult<JurisdictionDNA>(response, 'submit_dna_profile');
 
