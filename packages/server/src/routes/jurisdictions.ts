@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
 import { getScrapingStrategy } from '../services/scraper/aiScraper.js';
+import { watchtowerService } from '../services/watchtower/watchtowerService.js';
 
 export const jurisdictionsRouter = Router();
 
@@ -251,6 +252,48 @@ jurisdictionsRouter.post(
       data: {
         status: forceRediscovery ? 'rediscovered' : 'discovered',
         config,
+      },
+    });
+  })
+);
+
+// Check jurisdiction for updates (Watchtower)
+jurisdictionsRouter.post(
+  '/:id/check-updates',
+  asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
+
+    const jurisdiction = await prisma.jurisdiction.findUnique({ where: { id } });
+    if (!jurisdiction) {
+      throw new NotFoundError('Jurisdiction');
+    }
+
+    if (!jurisdiction.courtWebsite) {
+      return res.status(400).json({ success: false, error: 'No court website configured' });
+    }
+
+    const result = await watchtowerService.checkForUpdates(id);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  })
+);
+
+// Run Watchtower scan on all auto-sync jurisdictions
+jurisdictionsRouter.post(
+  '/watchtower/scan',
+  asyncHandler(async (_req, res) => {
+    const results = await watchtowerService.runScheduledChecks();
+
+    res.json({
+      success: true,
+      data: {
+        totalChecked: results.length,
+        changesDetected: results.filter(r => r.hasChanges).length,
+        relevantChanges: results.filter(r => r.relevantUpdate).length,
+        results,
       },
     });
   })
