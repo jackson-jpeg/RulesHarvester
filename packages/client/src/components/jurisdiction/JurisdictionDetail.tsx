@@ -86,7 +86,7 @@ export function JurisdictionDetail() {
                 <div>
                   <p className="text-sm font-medium text-text-secondary mb-2">Key Quirks</p>
                   <div className="space-y-1">
-                    {dna.keyQuirks.map((quirk, i) => (
+                    {dna.keyQuirks.map((quirk: string, i: number) => (
                       <div key={i} className="text-sm p-2 bg-surface-elevated rounded">
                         {quirk}
                       </div>
@@ -104,7 +104,7 @@ export function JurisdictionDetail() {
                 <div>
                   <p className="text-sm font-medium text-text-secondary mb-2">Common Traps</p>
                   <div className="space-y-1">
-                    {dna.commonTraps.map((trap, i) => (
+                    {dna.commonTraps.map((trap: string, i: number) => (
                       <div key={i} className="text-sm p-2 bg-rose-500/10 text-rose-400 rounded">
                         {trap}
                       </div>

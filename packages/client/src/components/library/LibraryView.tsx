@@ -13,7 +13,7 @@ import type { RuleTemplate } from '@rulesharvester/shared';
 
 const triggerTypeOptions = Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => ({
   value,
-  label,
+  label: label as string,
 }));
 
 export function LibraryView() {

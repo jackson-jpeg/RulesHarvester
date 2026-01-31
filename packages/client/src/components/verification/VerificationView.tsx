@@ -13,7 +13,7 @@ import type { Deadline, TriggerType } from '@rulesharvester/shared';
 
 const triggerTypeOptions = Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => ({
   value,
-  label,
+  label: label as string,
 }));
 
 const priorityOptions = [
@@ -27,7 +27,7 @@ export function VerificationView() {
   const { setActiveTab, addLog } = useUIStore();
 
   const [activeTab, setTabActive] = useState<'details' | 'deadlines' | 'debate' | 'raw'>('details');
-  const [editedRule, setEditedRule] = useState(selectedRule);
+  const [editedRule, setEditedRule] = useState<typeof selectedRule>(selectedRule);
   const [newDeadline, setNewDeadline] = useState({
     name: '',
     daysFromTrigger: 0,

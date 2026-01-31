@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { useRulesStore } from '../../store/rulesStore';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useUIStore } from '../../store/uiStore';
+import type { RuleTemplate } from '@rulesharvester/shared';
 
 export function ExportView() {
   const { rules } = useRulesStore();
@@ -13,13 +14,13 @@ export function ExportView() {
 
   const exportData = useMemo(() => {
     // Group rules by jurisdiction
-    const rulesByJurisdiction = rules.reduce((acc, rule) => {
+    const rulesByJurisdiction = rules.reduce<Record<string, RuleTemplate[]>>((acc, rule) => {
       if (!acc[rule.jurisdictionId]) {
         acc[rule.jurisdictionId] = [];
       }
       acc[rule.jurisdictionId].push(rule);
       return acc;
-    }, {} as Record<string, typeof rules>);
+    }, {});
 
     // Build export payload
     const jurisdictionData = jurisdictions
