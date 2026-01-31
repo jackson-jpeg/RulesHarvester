@@ -1,6 +1,5 @@
 {
-  "buildCommand": "npm run build -w @rulesharvester/shared && npm run build -w @rulesharvester/client",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "framework": null
+  "buildCommand": "npm run build -w @rulesharvester/shared && cd packages/client && npm run build",
+  "outputDirectory": "packages/client/dist",
+  "installCommand": "npm install"
 }
