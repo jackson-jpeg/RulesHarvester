@@ -1,4 +1,8 @@
 import { useUIStore } from '../store/uiStore';
+import { useJobsStore } from '../store/jobsStore';
+import { useRulesStore } from '../store/rulesStore';
+import { useEffect, useState } from 'react';
+import { api } from '../api/client';
 
 type TabId =
   | 'dashboard'
@@ -28,6 +32,54 @@ const navItems: NavItem[] = [
 
 export function Navigation() {
   const { activeTab, setActiveTab } = useUIStore();
+  const { jobs } = useJobsStore();
+  const { rules } = useRulesStore();
+  const [conflictCount, setConflictCount] = useState(0);
+
+  // Fetch conflict count periodically
+  useEffect(() => {
+    const fetchConflictCount = async () => {
+      try {
+        const response = await api.get<{ items: { status: string }[] }>('/conflicts');
+        const unresolved = response.items?.filter(c => c.status === 'UNRESOLVED').length || 0;
+        setConflictCount(unresolved);
+      } catch {
+        // Silently fail
+      }
+    };
+
+    fetchConflictCount();
+    const interval = setInterval(fetchConflictCount, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeJobCount = jobs.filter(j => j.status === 'processing' || j.status === 'pending').length;
+
+  // Badge counts for each nav item
+  const getBadgeCount = (id: TabId): number | null => {
+    switch (id) {
+      case 'workflow':
+        return activeJobCount > 0 ? activeJobCount : null;
+      case 'conflicts':
+        return conflictCount > 0 ? conflictCount : null;
+      case 'library':
+        return rules.length > 0 ? rules.length : null;
+      default:
+        return null;
+    }
+  };
+
+  // Badge variant for each nav item
+  const getBadgeVariant = (id: TabId): 'info' | 'warning' | 'error' => {
+    switch (id) {
+      case 'conflicts':
+        return 'error';
+      case 'workflow':
+        return 'warning';
+      default:
+        return 'info';
+    }
+  };
 
   return (
     <nav
@@ -35,38 +87,59 @@ export function Navigation() {
       role="navigation"
       aria-label="Main navigation"
     >
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setActiveTab(item.id)}
-          className={`
-            flex flex-col items-center gap-1 px-4 py-2 rounded-lg
-            transition-colors duration-150
-            ${
-              activeTab === item.id
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
-            }
-          `}
-          aria-current={activeTab === item.id ? 'page' : undefined}
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
+      {navItems.map((item) => {
+        const badgeCount = getBadgeCount(item.id);
+        const badgeVariant = getBadgeVariant(item.id);
+
+        return (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={`
+              relative flex flex-col items-center gap-1 px-4 py-2 rounded-lg
+              transition-colors duration-150
+              ${
+                activeTab === item.id
+                  ? 'bg-amber-500/20 text-amber-400'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
+              }
+            `}
+            aria-current={activeTab === item.id ? 'page' : undefined}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={item.icon}
-            />
-          </svg>
-          <span className="text-xs font-medium">{item.label}</span>
-        </button>
-      ))}
+            <div className="relative">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={item.icon}
+                />
+              </svg>
+              {badgeCount !== null && (
+                <span
+                  className={`
+                    absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1
+                    flex items-center justify-center
+                    text-[10px] font-bold rounded-full
+                    ${badgeVariant === 'error' ? 'bg-rose-500 text-white' : ''}
+                    ${badgeVariant === 'warning' ? 'bg-amber-500 text-black' : ''}
+                    ${badgeVariant === 'info' ? 'bg-blue-500 text-white' : ''}
+                  `}
+                >
+                  {badgeCount > 99 ? '99+' : badgeCount}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-medium">{item.label}</span>
+          </button>
+        );
+      })}
     </nav>
   );
 }

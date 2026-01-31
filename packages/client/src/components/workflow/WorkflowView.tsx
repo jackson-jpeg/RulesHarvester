@@ -1,22 +1,80 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { Select } from '../ui/Select';
 import { ProgressBar } from '../ui/ProgressBar';
 import { Spinner } from '../ui/Spinner';
+import { Toggle } from '../ui/Toggle';
 import { useJobsStore } from '../../store/jobsStore';
 import { JOB_STATUS_CONFIG } from '@rulesharvester/shared';
 
+type StatusFilter = 'all' | 'active' | 'completed' | 'failed';
+type SortBy = 'newest' | 'oldest' | 'progress';
+
 export function WorkflowView() {
   const { jobs, isLoading, fetchJobs, cancelJob, retryJob } = useJobsStore();
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('newest');
 
+  // Initial fetch
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
 
+  // Auto-refresh when there are active jobs
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const hasActiveJobs = jobs.some((j) => j.status === 'pending' || j.status === 'processing');
+    if (!hasActiveJobs) return;
+
+    const interval = setInterval(() => {
+      fetchJobs();
+    }, 3000); // Refresh every 3 seconds when there are active jobs
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, jobs, fetchJobs]);
+
   const activeJobs = jobs.filter((j) => j.status === 'pending' || j.status === 'processing');
   const completedJobs = jobs.filter((j) => j.status === 'completed');
   const failedJobs = jobs.filter((j) => j.status === 'failed');
+
+  // Filter jobs
+  const filteredJobs = useCallback(() => {
+    let filtered = [...jobs];
+
+    // Apply status filter
+    switch (statusFilter) {
+      case 'active':
+        filtered = filtered.filter((j) => j.status === 'pending' || j.status === 'processing');
+        break;
+      case 'completed':
+        filtered = filtered.filter((j) => j.status === 'completed');
+        break;
+      case 'failed':
+        filtered = filtered.filter((j) => j.status === 'failed');
+        break;
+    }
+
+    // Apply sort
+    switch (sortBy) {
+      case 'oldest':
+        filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        break;
+      case 'newest':
+        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'progress':
+        filtered.sort((a, b) => b.progress - a.progress);
+        break;
+    }
+
+    return filtered;
+  }, [jobs, statusFilter, sortBy]);
+
+  const displayedJobs = filteredJobs();
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -24,11 +82,24 @@ export function WorkflowView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Extraction Workflow</h1>
-          <p className="text-text-secondary">{jobs.length} total jobs</p>
+          <p className="text-text-secondary">
+            {jobs.length} total jobs
+            {activeJobs.length > 0 && (
+              <span className="ml-2 text-amber-400">
+                ({activeJobs.length} active)
+              </span>
+            )}
+          </p>
         </div>
-        <Button onClick={() => fetchJobs()} isLoading={isLoading}>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-secondary">Auto-refresh</span>
+            <Toggle checked={autoRefresh} onChange={setAutoRefresh} />
+          </div>
+          <Button onClick={() => fetchJobs()} isLoading={isLoading}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -56,7 +127,15 @@ export function WorkflowView() {
       {/* Active Jobs */}
       {activeJobs.length > 0 && (
         <Card>
-          <CardHeader>Active Extractions</CardHeader>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <span>Active Extractions</span>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {activeJobs.map((job) => (
@@ -67,15 +146,49 @@ export function WorkflowView() {
         </Card>
       )}
 
+      {/* Filters */}
+      <Card padding="sm">
+        <CardContent className="flex items-center gap-4">
+          <div className="w-40">
+            <Select
+              value={statusFilter}
+              options={[
+                { value: 'all', label: 'All Jobs' },
+                { value: 'active', label: 'Active' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'failed', label: 'Failed' },
+              ]}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            />
+          </div>
+          <div className="w-40">
+            <Select
+              value={sortBy}
+              options={[
+                { value: 'newest', label: 'Newest First' },
+                { value: 'oldest', label: 'Oldest First' },
+                { value: 'progress', label: 'By Progress' },
+              ]}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+            />
+          </div>
+          <span className="text-sm text-text-muted">
+            Showing {displayedJobs.length} of {jobs.length} jobs
+          </span>
+        </CardContent>
+      </Card>
+
       {/* Job History */}
       <Card>
         <CardHeader>Job History</CardHeader>
         <CardContent>
-          {jobs.length === 0 ? (
-            <p className="text-center text-text-muted py-8">No jobs yet</p>
+          {displayedJobs.length === 0 ? (
+            <p className="text-center text-text-muted py-8">
+              {jobs.length === 0 ? 'No jobs yet' : 'No matching jobs'}
+            </p>
           ) : (
             <div className="space-y-2">
-              {jobs.map((job) => (
+              {displayedJobs.map((job) => (
                 <div
                   key={job.id}
                   className="flex items-center justify-between p-3 bg-surface-elevated rounded-lg"
@@ -136,6 +249,26 @@ export function WorkflowView() {
   );
 }
 
+// Extraction pipeline steps for visualization
+const EXTRACTION_STEPS = [
+  { key: 'fetching', label: 'Fetch', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4' },
+  { key: 'parsing', label: 'Parse', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { key: 'extracting', label: 'Extract', icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z' },
+  { key: 'analyzing', label: 'Analyze', icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' },
+  { key: 'saving', label: 'Save', icon: 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4' },
+];
+
+function getStepIndex(currentStep?: string): number {
+  if (!currentStep) return 0;
+  const step = currentStep.toLowerCase();
+  if (step.includes('fetch') || step.includes('download')) return 0;
+  if (step.includes('pars')) return 1;
+  if (step.includes('extract')) return 2;
+  if (step.includes('analy') || step.includes('ai') || step.includes('process')) return 3;
+  if (step.includes('sav') || step.includes('stor') || step.includes('complet')) return 4;
+  return Math.floor((EXTRACTION_STEPS.length - 1) * (parseInt(currentStep) || 0) / 100);
+}
+
 interface JobCardProps {
   job: {
     id: string;
@@ -144,24 +277,66 @@ interface JobCardProps {
     progress: number;
     currentStep?: string;
     agentConsensus?: number;
+    createdAt?: Date | string;
   };
   onCancel: () => void;
 }
 
 function JobCard({ job, onCancel }: JobCardProps) {
+  const currentStepIdx = getStepIndex(job.currentStep);
+
   return (
     <div className="p-4 border border-border rounded-lg">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <Spinner size="sm" />
           <div>
             <p className="font-semibold">{job.jurisdictionCode}</p>
-            <p className="text-sm text-text-muted">{job.currentStep}</p>
+            <p className="text-sm text-text-muted">{job.currentStep || 'Starting...'}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
+      </div>
+
+      {/* Step Pipeline */}
+      <div className="flex items-center justify-between mb-4">
+        {EXTRACTION_STEPS.map((step, idx) => {
+          const isComplete = idx < currentStepIdx;
+          const isCurrent = idx === currentStepIdx;
+          const isPending = idx > currentStepIdx;
+
+          return (
+            <div key={step.key} className="flex items-center flex-1">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`
+                    w-8 h-8 rounded-full flex items-center justify-center transition-colors
+                    ${isComplete ? 'bg-emerald-500' : isCurrent ? 'bg-amber-500 animate-pulse' : 'bg-surface-elevated'}
+                  `}
+                >
+                  <svg
+                    className={`w-4 h-4 ${isComplete ? 'text-white' : isCurrent ? 'text-black' : 'text-text-muted'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={step.icon} />
+                  </svg>
+                </div>
+                <span className={`text-xs mt-1 ${isCurrent ? 'text-amber-400' : 'text-text-muted'}`}>
+                  {step.label}
+                </span>
+              </div>
+              {idx < EXTRACTION_STEPS.length - 1 && (
+                <div
+                  className={`flex-1 h-0.5 mx-2 ${isComplete ? 'bg-emerald-500' : 'bg-surface-elevated'}`}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <ProgressBar value={job.progress} showLabel />
