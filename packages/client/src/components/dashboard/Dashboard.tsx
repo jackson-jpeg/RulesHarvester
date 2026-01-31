@@ -18,10 +18,16 @@ interface DashboardStats {
   avgConfidenceScore: number;
 }
 
+interface SystemStatus {
+  cartographer: { jurisdictionsWithConfig: number; totalJurisdictions: number; coverage: number };
+  watchtower: { autoSyncEnabled: number; recentScans: number };
+}
+
 const COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
 export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [velocity, setVelocity] = useState<{ date: string; count: number }[]>([]);
   const [complexity, setComplexity] = useState<{ name: string; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,29 +37,31 @@ export function Dashboard() {
   const { rules } = useRulesStore();
   const { setActiveTab, systemLogs } = useUIStore();
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const [statsData, velocityData, complexityData] = await Promise.all([
-          api.get<DashboardStats>('/stats'),
-          api.get<{ date: string; count: number }[]>('/stats/velocity'),
-          api.get<{ low: number; medium: number; high: number }>('/stats/complexity'),
-        ]);
+  const fetchStats = async () => {
+    try {
+      const [statsData, velocityData, complexityData, systemData] = await Promise.all([
+        api.get<DashboardStats>('/stats'),
+        api.get<{ date: string; count: number }[]>('/stats/velocity'),
+        api.get<{ low: number; medium: number; high: number }>('/stats/complexity'),
+        api.get<SystemStatus>('/stats/system'),
+      ]);
 
-        setStats(statsData);
-        setVelocity(velocityData);
-        setComplexity([
-          { name: 'Low (1-3)', value: complexityData.low },
-          { name: 'Medium (4-6)', value: complexityData.medium },
-          { name: 'High (7-10)', value: complexityData.high },
-        ]);
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
+      setStats(statsData);
+      setSystemStatus(systemData);
+      setVelocity(velocityData);
+      setComplexity([
+        { name: 'Low (1-3)', value: complexityData.low },
+        { name: 'Medium (4-6)', value: complexityData.medium },
+        { name: 'High (7-10)', value: complexityData.high },
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     fetchStats();
   }, []);
 
@@ -91,13 +99,24 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-text-secondary">Overview of rule extraction system</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-text-secondary">Overview of rule extraction system</p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); fetchStats(); }}
+          className="p-2 rounded-lg hover:bg-surface-elevated text-text-secondary hover:text-text-primary transition-colors"
+          title="Refresh stats"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent>
             <p className="text-sm text-text-secondary">Total Rules</p>
@@ -108,7 +127,7 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-text-secondary">Synced Jurisdictions</p>
+            <p className="text-sm text-text-secondary">Synced</p>
             <p className="text-3xl font-bold text-emerald-400">
               {stats?.syncedJurisdictions || 0}/{stats?.totalJurisdictions || 0}
             </p>
@@ -124,8 +143,24 @@ export function Dashboard() {
         </Card>
         <Card>
           <CardContent>
-            <p className="text-sm text-text-secondary">Avg Confidence</p>
+            <p className="text-sm text-text-secondary">Conflicts</p>
+            <p className="text-3xl font-bold text-rose-400">
+              {stats?.unresolvedConflicts || 0}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent>
+            <p className="text-sm text-text-secondary">AI Coverage</p>
             <p className="text-3xl font-bold text-purple-400">
+              {systemStatus?.cartographer.coverage || 0}%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent>
+            <p className="text-sm text-text-secondary">Confidence</p>
+            <p className="text-3xl font-bold text-cyan-400">
               {((stats?.avgConfidenceScore || 0)).toFixed(0)}%
             </p>
           </CardContent>

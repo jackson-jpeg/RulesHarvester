@@ -1,10 +1,17 @@
 import { useUIStore } from '../store/uiStore';
 import { useJurisdictionsStore } from '../store/jurisdictionsStore';
+import { useJobsStore } from '../store/jobsStore';
 import { Badge } from './ui/Badge';
+import { ProgressBar } from './ui/ProgressBar';
 
 export function Sidebar() {
   const { sidebarOpen, toggleSidebar, systemLogs, agents } = useUIStore();
   const { groupedJurisdictions } = useJurisdictionsStore();
+  const { jobs } = useJobsStore();
+
+  const activeJobs = jobs.filter(j => j.status === 'processing' || j.status === 'pending');
+  const completedJobs = jobs.filter(j => j.status === 'completed').length;
+  const failedJobs = jobs.filter(j => j.status === 'failed').length;
 
   const syncedCount = groupedJurisdictions
     ? [...groupedJurisdictions.federalCircuits, ...groupedJurisdictions.federalDistricts, ...groupedJurisdictions.states].filter(
@@ -74,6 +81,53 @@ export function Sidebar() {
                 className="bg-amber-500 h-2 rounded-full transition-all"
                 style={{ width: `${totalCount > 0 ? (syncedCount / totalCount) * 100 : 0}%` }}
               />
+            </div>
+          </div>
+
+          {/* Active Jobs */}
+          {activeJobs.length > 0 && (
+            <div className="p-4 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+                Active Jobs ({activeJobs.length})
+              </h2>
+              <div className="space-y-2">
+                {activeJobs.slice(0, 3).map((job) => (
+                  <div key={job.id} className="text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-text-secondary truncate max-w-[120px]">
+                        {job.jurisdictionCode}
+                      </span>
+                      <span className="text-amber-400">{job.progress}%</span>
+                    </div>
+                    <ProgressBar value={job.progress} size="sm" />
+                    <p className="text-text-muted mt-0.5 truncate">{job.currentStep}</p>
+                  </div>
+                ))}
+                {activeJobs.length > 3 && (
+                  <p className="text-xs text-text-muted">+{activeJobs.length - 3} more</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Job Stats */}
+          <div className="p-4 border-b border-border">
+            <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+              Job Stats
+            </h2>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2 bg-surface-elevated rounded">
+                <p className="text-amber-400 font-bold">{activeJobs.length}</p>
+                <p className="text-text-muted">Active</p>
+              </div>
+              <div className="p-2 bg-surface-elevated rounded">
+                <p className="text-emerald-400 font-bold">{completedJobs}</p>
+                <p className="text-text-muted">Done</p>
+              </div>
+              <div className="p-2 bg-surface-elevated rounded">
+                <p className="text-rose-400 font-bold">{failedJobs}</p>
+                <p className="text-text-muted">Failed</p>
+              </div>
             </div>
           </div>
 
