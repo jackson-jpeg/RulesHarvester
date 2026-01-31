@@ -1,14 +1,16 @@
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { Toggle } from '../ui/Toggle';
+import { Select } from '../ui/Select';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
 import { JURISDICTION_STATUS_CONFIG, TRIGGER_TYPE_LABELS } from '@rulesharvester/shared';
-import type { JurisdictionDNA, RuleTemplate } from '@rulesharvester/shared';
+import type { JurisdictionDNA, RuleTemplate, ScraperConfig } from '@rulesharvester/shared';
 
 export function JurisdictionDetail() {
-  const { selectedJurisdiction, selectJurisdiction } = useJurisdictionsStore();
+  const { selectedJurisdiction, selectJurisdiction, updateSyncSettings, triggerDiscovery } = useJurisdictionsStore();
   const { rules } = useRulesStore();
   const { setActiveTab } = useUIStore();
 
@@ -187,6 +189,59 @@ export function JurisdictionDetail() {
                     ? new Date(selectedJurisdiction.lastSyncedAt).toLocaleDateString()
                     : 'Never'}
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sync Settings */}
+        <Card className="col-span-12">
+          <CardHeader>Sync Settings</CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Auto-Sync Toggle */}
+              <div className="flex items-center justify-between p-4 bg-surface-elevated rounded-lg">
+                <div>
+                  <p className="font-medium">Auto-Sync</p>
+                  <p className="text-sm text-text-muted">Automatically check for updates</p>
+                </div>
+                <Toggle
+                  checked={selectedJurisdiction.autoSyncEnabled ?? false}
+                  onChange={(checked) => updateSyncSettings(selectedJurisdiction.id, { autoSyncEnabled: checked })}
+                />
+              </div>
+
+              {/* Sync Frequency */}
+              <div className="p-4 bg-surface-elevated rounded-lg">
+                <Select
+                  label="Sync Frequency"
+                  value={selectedJurisdiction.syncFrequency ?? 'WEEKLY'}
+                  options={[
+                    { value: 'DAILY', label: 'Daily' },
+                    { value: 'WEEKLY', label: 'Weekly' },
+                    { value: 'MANUAL_ONLY', label: 'Manual Only' },
+                  ]}
+                  onChange={(e) => updateSyncSettings(selectedJurisdiction.id, { syncFrequency: e.target.value })}
+                  disabled={!selectedJurisdiction.autoSyncEnabled}
+                />
+              </div>
+
+              {/* Discovery Button */}
+              <div className="p-4 bg-surface-elevated rounded-lg">
+                <p className="text-sm text-text-secondary mb-2">Scraper Config</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => triggerDiscovery(selectedJurisdiction.id, !!selectedJurisdiction.scraperConfig)}
+                  disabled={!selectedJurisdiction.courtWebsite}
+                >
+                  {selectedJurisdiction.scraperConfig ? 'Re-discover Selectors' : 'Discover Selectors'}
+                </Button>
+                {selectedJurisdiction.scraperConfig && (
+                  <p className="text-xs text-text-muted mt-2">
+                    Confidence: {(selectedJurisdiction.scraperConfig as ScraperConfig).confidence ?? 100}%
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

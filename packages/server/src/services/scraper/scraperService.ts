@@ -51,8 +51,8 @@ class ScraperService {
   /**
    * Scrape a single URL for rule content
    */
-  async scrapeUrl(url: string): Promise<ScrapeResult> {
-    const config = getSiteConfig(url);
+  async scrapeUrl(url: string, jurisdictionId?: string): Promise<ScrapeResult> {
+    const config = await getSiteConfig(url, jurisdictionId);
     const html = await this.fetchHtml(url);
     const $ = cheerio.load(html);
 
@@ -138,10 +138,10 @@ class ScraperService {
    */
   async crawlSite(
     baseUrl: string,
-    options: { maxPages?: number; followLinks?: boolean } = {}
+    options: { maxPages?: number; followLinks?: boolean; jurisdictionId?: string } = {}
   ): Promise<CrawlResult> {
-    const { maxPages = 20, followLinks = true } = options;
-    const config = getSiteConfig(baseUrl);
+    const { maxPages = 20, followLinks = true, jurisdictionId } = options;
+    const config = await getSiteConfig(baseUrl, jurisdictionId);
     const startedAt = new Date();
 
     const pages: ScrapeResult[] = [];
@@ -157,7 +157,7 @@ class ScraperService {
       visited.add(url);
 
       try {
-        const result = await this.scrapeUrl(url);
+        const result = await this.scrapeUrl(url, jurisdictionId);
         pages.push(result);
 
         // Add discovered links to queue if following links

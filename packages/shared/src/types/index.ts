@@ -39,6 +39,27 @@ export enum JurisdictionStatus {
   UPDATING = 'updating',
 }
 
+export enum SyncFrequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MANUAL_ONLY = 'MANUAL_ONLY',
+}
+
+export interface ScraperConfig {
+  name: string;
+  baseUrl: string;
+  ruleListSelector: string;
+  ruleLinkSelector: string;
+  ruleContentSelector: string;
+  ruleCodeSelector?: string;
+  ruleTitleSelector?: string;
+  paginationSelector?: string;
+  rateLimitMs: number;
+  discoveredAt?: string;
+  confidence?: number;
+  discoveryReasoning?: string;
+}
+
 export enum JurisdictionType {
   FEDERAL_CIRCUIT = 'federal_circuit',
   FEDERAL_DISTRICT = 'federal_district',
@@ -188,6 +209,9 @@ export interface JurisdictionMeta {
   parentId?: string; // For districts, reference to circuit
   courtWebsite?: string;
   lastSyncedAt?: Date;
+  scraperConfig?: ScraperConfig;
+  autoSyncEnabled?: boolean;
+  syncFrequency?: SyncFrequency;
 }
 
 // AI Agent

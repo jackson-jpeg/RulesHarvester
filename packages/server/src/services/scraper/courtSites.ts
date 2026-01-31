@@ -3,6 +3,9 @@
  * Each site has selectors for extracting rule content
  */
 
+import { prisma } from '../../index.js';
+import { getScrapingStrategy } from './aiScraper.js';
+
 export interface CourtSiteConfig {
   name: string;
   baseUrl: string;
@@ -87,26 +90,46 @@ export const GENERIC_CONFIG: CourtSiteConfig = {
 };
 
 /**
- * Get site configuration by URL
+ * Get site configuration by URL - checks DB first, then hardcoded, then AI discovery
  */
-export function getSiteConfig(url: string): CourtSiteConfig {
+export async function getSiteConfig(
+  url: string,
+  jurisdictionId?: string
+): Promise<CourtSiteConfig> {
   const hostname = new URL(url).hostname.toLowerCase();
 
-  // Check federal courts
+  // 1. Check database for cached AI-discovered config
+  if (jurisdictionId) {
+    const jurisdiction = await prisma.jurisdiction.findUnique({
+      where: { id: jurisdictionId },
+      select: { scraperConfig: true },
+    });
+
+    if (jurisdiction?.scraperConfig) {
+      return jurisdiction.scraperConfig as unknown as CourtSiteConfig;
+    }
+  }
+
+  // 2. Check hardcoded federal courts
   for (const [key, config] of Object.entries(FEDERAL_COURT_SITES)) {
     if (hostname.includes(key) || hostname.includes(config.baseUrl.replace('https://', '').replace('www.', ''))) {
       return config;
     }
   }
 
-  // Check state courts
+  // 3. Check hardcoded state courts
   for (const [key, config] of Object.entries(STATE_COURT_SITES)) {
     if (hostname.includes(key) || hostname.includes(config.baseUrl.replace('https://', '').replace('www.', ''))) {
       return config;
     }
   }
 
-  // Return generic config with the provided URL as base
+  // 4. Trigger AI discovery for unknown sites
+  if (jurisdictionId) {
+    return await getScrapingStrategy(url, jurisdictionId);
+  }
+
+  // 5. Ultimate fallback to generic config
   return {
     ...GENERIC_CONFIG,
     baseUrl: `${new URL(url).protocol}//${new URL(url).hostname}`,

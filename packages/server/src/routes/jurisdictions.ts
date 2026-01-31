@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
+import { getScrapingStrategy } from '../services/scraper/aiScraper.js';
 
 export const jurisdictionsRouter = Router();
 
@@ -184,6 +186,71 @@ jurisdictionsRouter.get(
       data: {
         circuit,
         districts: circuit.children,
+      },
+    });
+  })
+);
+
+// Update sync settings
+jurisdictionsRouter.patch(
+  '/:id/sync-settings',
+  asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
+    const { autoSyncEnabled, syncFrequency } = req.body;
+
+    const jurisdiction = await prisma.jurisdiction.findUnique({ where: { id } });
+    if (!jurisdiction) {
+      throw new NotFoundError('Jurisdiction');
+    }
+
+    if (syncFrequency && !['DAILY', 'WEEKLY', 'MANUAL_ONLY'].includes(syncFrequency)) {
+      return res.status(400).json({ success: false, error: 'Invalid syncFrequency' });
+    }
+
+    const updated = await prisma.jurisdiction.update({
+      where: { id },
+      data: {
+        ...(autoSyncEnabled !== undefined && { autoSyncEnabled }),
+        ...(syncFrequency && { syncFrequency }),
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  })
+);
+
+// Trigger AI discovery of scraper selectors
+jurisdictionsRouter.post(
+  '/:id/discover',
+  asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
+    const { forceRediscovery = false } = req.body;
+
+    const jurisdiction = await prisma.jurisdiction.findUnique({ where: { id } });
+    if (!jurisdiction) {
+      throw new NotFoundError('Jurisdiction');
+    }
+
+    if (!jurisdiction.courtWebsite) {
+      return res.status(400).json({ success: false, error: 'No court website configured' });
+    }
+
+    // Clear cached config if forcing rediscovery
+    if (forceRediscovery && jurisdiction.scraperConfig) {
+      await prisma.jurisdiction.update({
+        where: { id },
+        data: { scraperConfig: Prisma.DbNull },
+      });
+    }
+
+    // Trigger discovery
+    const config = await getScrapingStrategy(jurisdiction.courtWebsite, id);
+
+    res.json({
+      success: true,
+      data: {
+        status: forceRediscovery ? 'rediscovered' : 'discovered',
+        config,
       },
     });
   })
