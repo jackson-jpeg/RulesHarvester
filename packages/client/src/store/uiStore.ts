@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SystemLog, AIAgent } from '@rulesharvester/shared';
+import { AgentStatus } from '@rulesharvester/shared';
 
 type TabId =
   | 'dashboard'
@@ -34,9 +35,9 @@ export const useUIStore = create<UIState>((set) => ({
   activeTab: 'dashboard',
   systemLogs: [],
   agents: [
-    { id: 'agent-formalist', persona: 'Formalist', status: 'idle' },
-    { id: 'agent-analyst', persona: 'Analyst', status: 'idle' },
-    { id: 'agent-historian', persona: 'Historian', status: 'idle' },
+    { id: 'agent-formalist', persona: 'Formalist', status: AgentStatus.IDLE },
+    { id: 'agent-analyst', persona: 'Analyst', status: AgentStatus.IDLE },
+    { id: 'agent-historian', persona: 'Historian', status: AgentStatus.IDLE },
   ],
   isAutoHarvesting: false,
   sidebarOpen: true,

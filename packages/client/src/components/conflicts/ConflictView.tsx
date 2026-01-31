@@ -5,6 +5,7 @@ import { Badge } from '../ui/Badge';
 import { api } from '../../api/client';
 import { useUIStore } from '../../store/uiStore';
 import type { RuleConflict } from '@rulesharvester/shared';
+import { ConflictStatus } from '@rulesharvester/shared';
 
 export function ConflictView() {
   const [conflicts, setConflicts] = useState<RuleConflict[]>([]);
@@ -38,8 +39,8 @@ export function ConflictView() {
     }
   };
 
-  const unresolvedConflicts = conflicts.filter((c) => c.status === 'UNRESOLVED');
-  const resolvedConflicts = conflicts.filter((c) => c.status !== 'UNRESOLVED');
+  const unresolvedConflicts = conflicts.filter((c) => c.status === ConflictStatus.UNRESOLVED);
+  const resolvedConflicts = conflicts.filter((c) => c.status !== ConflictStatus.UNRESOLVED);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -95,7 +96,7 @@ export function ConflictView() {
                     <p className="text-sm text-text-muted">{conflict.discrepancy}</p>
                   </div>
                   <Badge
-                    variant={conflict.status === 'RESOLVED' ? 'success' : 'warning'}
+                    variant={conflict.status === ConflictStatus.RESOLVED ? 'success' : 'warning'}
                   >
                     {conflict.status}
                   </Badge>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ExtractionJob } from '@rulesharvester/shared';
+import { JobStatus } from '@rulesharvester/shared';
 import { api } from '../api/client';
 
 interface JobsState {
@@ -63,7 +64,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
       set((state) => ({
         jobs: state.jobs.map((j) =>
           j.id === id
-            ? { ...j, status: 'failed' as const, error: 'Cancelled by user' }
+            ? { ...j, status: JobStatus.FAILED, error: 'Cancelled by user' }
             : j
         ),
       }));
@@ -80,7 +81,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
       set((state) => ({
         jobs: state.jobs.map((j) =>
           j.id === id
-            ? { ...j, status: 'pending' as const, progress: 0, error: undefined }
+            ? { ...j, status: JobStatus.PENDING, progress: 0, error: undefined }
             : j
         ),
       }));
@@ -100,7 +101,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
               progress,
               currentStep,
               agentConsensus,
-              status: 'processing' as const,
+              status: JobStatus.PROCESSING,
             }
           : j
       ),
@@ -113,7 +114,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
         j.id === jobId
           ? {
               ...j,
-              status: 'completed' as const,
+              status: JobStatus.COMPLETED,
               progress: 100,
               currentStep: 'Complete',
               ruleId,
@@ -129,7 +130,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
         j.id === jobId
           ? {
               ...j,
-              status: 'failed' as const,
+              status: JobStatus.FAILED,
               error,
               currentStep: 'Failed',
             }

@@ -8,7 +8,8 @@ import { Spinner } from '../ui/Spinner';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
 import { TRIGGER_TYPE_LABELS, PRIORITY_COLORS } from '@rulesharvester/shared';
-import type { Deadline, DeadlinePriority, TriggerType } from '@rulesharvester/shared';
+import { DeadlinePriority } from '@rulesharvester/shared';
+import type { Deadline, TriggerType } from '@rulesharvester/shared';
 
 const triggerTypeOptions = Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => ({
   value,
@@ -30,7 +31,7 @@ export function VerificationView() {
   const [newDeadline, setNewDeadline] = useState({
     name: '',
     daysFromTrigger: 0,
-    priority: 'STANDARD' as DeadlinePriority,
+    priority: DeadlinePriority.STANDARD,
     actionRequired: '',
   });
 
@@ -83,7 +84,7 @@ export function VerificationView() {
     setNewDeadline({
       name: '',
       daysFromTrigger: 0,
-      priority: 'STANDARD',
+      priority: DeadlinePriority.STANDARD,
       actionRequired: '',
     });
   };
