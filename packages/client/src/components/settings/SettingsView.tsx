@@ -2,9 +2,21 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
 import { Badge } from '../ui/Badge';
+import { Skeleton } from '../ui/Spinner';
 import { useUIStore } from '../../store/uiStore';
+import { api } from '../../api/client';
+import { toast } from '../ui/Toast';
+
+interface SystemStatus {
+  database: { connected: boolean; provider: string };
+  redis: { connected: boolean; url: string };
+  queue: { waiting: number; active: number; completed: number; failed: number };
+  cartographer: { jurisdictionsWithConfig: number; totalJurisdictions: number; coverage: number };
+  watchtower: { autoSyncEnabled: number; recentScans: number };
+  environment: string;
+  version: string;
+}
 
 const SETTINGS_KEY = 'rulesharvester-settings';
 
@@ -43,11 +55,26 @@ export function SettingsView() {
 
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [hasChanges, setHasChanges] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
-  // Load settings on mount
+  // Load settings and system status on mount
   useEffect(() => {
     setSettings(loadSettings());
+    fetchSystemStatus();
   }, []);
+
+  const fetchSystemStatus = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const status = await api.get<SystemStatus>('/stats/system');
+      setSystemStatus(status);
+    } catch (error) {
+      console.error('Failed to fetch system status:', error);
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
 
   // Track changes
   const updateSettings = (updates: Partial<AppSettings>) => {
@@ -59,12 +86,14 @@ export function SettingsView() {
     saveSettings(settings);
     setHasChanges(false);
     addLog('Settings saved', 'success');
+    toast.success('Settings saved successfully');
   };
 
   const handleClearData = () => {
     if (window.confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
       localStorage.clear();
       addLog('Local data cleared', 'warn');
+      toast.warning('Local data cleared');
       window.location.reload();
     }
   };
@@ -154,28 +183,121 @@ export function SettingsView() {
 
         {/* System Info */}
         <Card>
-          <CardHeader>System Information</CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <span>System Status</span>
+              <Button variant="ghost" size="sm" onClick={fetchSystemStatus}>
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-text-secondary">Version</span>
-              <Badge variant="info">v2.0.0</Badge>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-text-secondary">AI Model</span>
-              <span className="font-mono text-sm">claude-sonnet-4-20250514</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-text-secondary">Database</span>
-              <Badge variant="success">Connected</Badge>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-text-secondary">Redis Queue</span>
-              <Badge variant="success">Active</Badge>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-text-secondary">SSE Connection</span>
-              <Badge variant="success">Connected</Badge>
-            </div>
+            {isLoadingStatus ? (
+              <div className="space-y-3">
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+              </div>
+            ) : systemStatus ? (
+              <>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-text-secondary">Version</span>
+                  <Badge variant="info">v{systemStatus.version}</Badge>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-text-secondary">Environment</span>
+                  <Badge variant={systemStatus.environment === 'production' ? 'warning' : 'default'}>
+                    {systemStatus.environment}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-text-secondary">Database</span>
+                  <Badge variant={systemStatus.database.connected ? 'success' : 'error'}>
+                    {systemStatus.database.connected ? 'Connected' : 'Disconnected'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-text-secondary">Redis Queue</span>
+                  <Badge variant={systemStatus.redis.connected ? 'success' : 'warning'}>
+                    {systemStatus.redis.connected ? 'Active' : 'In-Memory Mode'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-text-secondary">AI Model</span>
+                  <span className="font-mono text-sm">claude-sonnet-4</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-text-muted">Failed to load system status</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cartographer & Watchtower Status */}
+        <Card>
+          <CardHeader>AI Services Status</CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingStatus ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16" />
+                <Skeleton className="h-16" />
+              </div>
+            ) : systemStatus ? (
+              <>
+                {/* Cartographer */}
+                <div className="p-3 bg-surface-elevated rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Cartographer</span>
+                    <Badge variant="info">{systemStatus.cartographer.coverage}% coverage</Badge>
+                  </div>
+                  <p className="text-sm text-text-muted">
+                    {systemStatus.cartographer.jurisdictionsWithConfig} of {systemStatus.cartographer.totalJurisdictions} jurisdictions
+                    have AI-discovered scraper configs
+                  </p>
+                </div>
+
+                {/* Watchtower */}
+                <div className="p-3 bg-surface-elevated rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Watchtower</span>
+                    <Badge variant={systemStatus.watchtower.autoSyncEnabled > 0 ? 'success' : 'warning'}>
+                      {systemStatus.watchtower.autoSyncEnabled} auto-sync
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-text-muted">
+                    {systemStatus.watchtower.recentScans} change detection scans in last 24h
+                  </p>
+                </div>
+
+                {/* Queue Stats */}
+                <div className="p-3 bg-surface-elevated rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">Job Queue</span>
+                    <Badge variant={systemStatus.queue.active > 0 ? 'warning' : 'default'}>
+                      {systemStatus.queue.active} active
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                    <div>
+                      <p className="text-text-muted">Waiting</p>
+                      <p className="font-medium">{systemStatus.queue.waiting}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Active</p>
+                      <p className="font-medium text-amber-400">{systemStatus.queue.active}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Done</p>
+                      <p className="font-medium text-emerald-400">{systemStatus.queue.completed}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Failed</p>
+                      <p className="font-medium text-rose-400">{systemStatus.queue.failed}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </CardContent>
         </Card>
 

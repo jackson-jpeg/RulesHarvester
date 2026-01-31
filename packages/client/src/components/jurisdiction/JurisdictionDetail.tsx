@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -8,11 +9,25 @@ import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
 import { JURISDICTION_STATUS_CONFIG, TRIGGER_TYPE_LABELS } from '@rulesharvester/shared';
 import type { JurisdictionDNA, RuleTemplate, ScraperConfig } from '@rulesharvester/shared';
+import { api } from '../../api/client';
+import { toast } from '../ui/Toast';
+
+interface WatchtowerResult {
+  hasChanges: boolean;
+  relevantUpdate: boolean;
+  changeDescription?: string;
+  contentHash: string;
+}
 
 export function JurisdictionDetail() {
   const { selectedJurisdiction, selectJurisdiction, updateSyncSettings, triggerDiscovery } = useJurisdictionsStore();
   const { rules } = useRulesStore();
   const { setActiveTab } = useUIStore();
+
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [watchtowerResult, setWatchtowerResult] = useState<WatchtowerResult | null>(null);
+  const [showScraperDetails, setShowScraperDetails] = useState(false);
 
   if (!selectedJurisdiction) {
     return (
@@ -198,7 +213,7 @@ export function JurisdictionDetail() {
         <Card className="col-span-12">
           <CardHeader>Sync Settings</CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Auto-Sync Toggle */}
               <div className="flex items-center justify-between p-4 bg-surface-elevated rounded-lg">
                 <div>
@@ -207,7 +222,10 @@ export function JurisdictionDetail() {
                 </div>
                 <Toggle
                   checked={selectedJurisdiction.autoSyncEnabled ?? false}
-                  onChange={(checked) => updateSyncSettings(selectedJurisdiction.id, { autoSyncEnabled: checked })}
+                  onChange={async (checked) => {
+                    await updateSyncSettings(selectedJurisdiction.id, { autoSyncEnabled: checked });
+                    toast.success(checked ? 'Auto-sync enabled' : 'Auto-sync disabled');
+                  }}
                 />
               </div>
 
@@ -221,29 +239,119 @@ export function JurisdictionDetail() {
                     { value: 'WEEKLY', label: 'Weekly' },
                     { value: 'MANUAL_ONLY', label: 'Manual Only' },
                   ]}
-                  onChange={(e) => updateSyncSettings(selectedJurisdiction.id, { syncFrequency: e.target.value })}
+                  onChange={async (e) => {
+                    await updateSyncSettings(selectedJurisdiction.id, { syncFrequency: e.target.value });
+                    toast.success(`Sync frequency set to ${e.target.value.toLowerCase()}`);
+                  }}
                   disabled={!selectedJurisdiction.autoSyncEnabled}
                 />
               </div>
 
               {/* Discovery Button */}
               <div className="p-4 bg-surface-elevated rounded-lg">
-                <p className="text-sm text-text-secondary mb-2">Scraper Config</p>
+                <p className="text-sm text-text-secondary mb-2">Cartographer</p>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => triggerDiscovery(selectedJurisdiction.id, !!selectedJurisdiction.scraperConfig)}
-                  disabled={!selectedJurisdiction.courtWebsite}
+                  onClick={async () => {
+                    if (!selectedJurisdiction.courtWebsite) return;
+                    setIsDiscovering(true);
+                    try {
+                      await triggerDiscovery(selectedJurisdiction.id, !!selectedJurisdiction.scraperConfig);
+                      toast.success('Scraper selectors discovered');
+                    } catch {
+                      toast.error('Discovery failed');
+                    } finally {
+                      setIsDiscovering(false);
+                    }
+                  }}
+                  disabled={!selectedJurisdiction.courtWebsite || isDiscovering}
                 >
-                  {selectedJurisdiction.scraperConfig ? 'Re-discover Selectors' : 'Discover Selectors'}
+                  {isDiscovering ? 'Discovering...' : selectedJurisdiction.scraperConfig ? 'Re-discover' : 'Discover Selectors'}
                 </Button>
                 {selectedJurisdiction.scraperConfig && (
-                  <p className="text-xs text-text-muted mt-2">
-                    Confidence: {(selectedJurisdiction.scraperConfig as ScraperConfig).confidence ?? 100}%
-                  </p>
+                  <button
+                    onClick={() => setShowScraperDetails(!showScraperDetails)}
+                    className="text-xs text-amber-400 mt-2 hover:underline"
+                  >
+                    {(selectedJurisdiction.scraperConfig as ScraperConfig).confidence ?? 100}% confidence
+                    {showScraperDetails ? ' (hide)' : ' (details)'}
+                  </button>
+                )}
+              </div>
+
+              {/* Watchtower Check */}
+              <div className="p-4 bg-surface-elevated rounded-lg">
+                <p className="text-sm text-text-secondary mb-2">Watchtower</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    if (!selectedJurisdiction.courtWebsite) return;
+                    setIsChecking(true);
+                    setWatchtowerResult(null);
+                    try {
+                      const result = await api.post<WatchtowerResult>(
+                        `/jurisdictions/${selectedJurisdiction.id}/check-updates`
+                      );
+                      setWatchtowerResult(result);
+                      if (result.hasChanges) {
+                        toast.info(result.relevantUpdate ? 'Relevant changes detected!' : 'Changes detected (not rule-related)');
+                      } else {
+                        toast.success('No changes detected');
+                      }
+                    } catch {
+                      toast.error('Check failed');
+                    } finally {
+                      setIsChecking(false);
+                    }
+                  }}
+                  disabled={!selectedJurisdiction.courtWebsite || isChecking}
+                >
+                  {isChecking ? 'Checking...' : 'Check for Updates'}
+                </Button>
+                {watchtowerResult && (
+                  <div className="mt-2">
+                    <Badge variant={watchtowerResult.hasChanges ? (watchtowerResult.relevantUpdate ? 'warning' : 'info') : 'success'}>
+                      {watchtowerResult.hasChanges ? (watchtowerResult.relevantUpdate ? 'Updates Found' : 'Minor Changes') : 'No Changes'}
+                    </Badge>
+                  </div>
                 )}
               </div>
             </div>
+
+            {/* Scraper Config Details */}
+            {showScraperDetails && selectedJurisdiction.scraperConfig && (
+              <div className="mt-4 p-4 bg-surface rounded-lg border border-border">
+                <h4 className="font-medium mb-3">Discovered CSS Selectors</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-text-muted">Rule List</p>
+                    <code className="text-amber-400">{(selectedJurisdiction.scraperConfig as ScraperConfig).ruleListSelector}</code>
+                  </div>
+                  <div>
+                    <p className="text-text-muted">Rule Links</p>
+                    <code className="text-amber-400">{(selectedJurisdiction.scraperConfig as ScraperConfig).ruleLinkSelector}</code>
+                  </div>
+                  <div>
+                    <p className="text-text-muted">Content Area</p>
+                    <code className="text-amber-400">{(selectedJurisdiction.scraperConfig as ScraperConfig).ruleContentSelector}</code>
+                  </div>
+                  <div>
+                    <p className="text-text-muted">Discovered At</p>
+                    <span>{(selectedJurisdiction.scraperConfig as ScraperConfig).discoveredAt
+                      ? new Date((selectedJurisdiction.scraperConfig as ScraperConfig).discoveredAt!).toLocaleString()
+                      : 'Unknown'}</span>
+                  </div>
+                </div>
+                {(selectedJurisdiction.scraperConfig as ScraperConfig).discoveryReasoning && (
+                  <div className="mt-3 p-3 bg-surface-elevated rounded text-sm">
+                    <p className="text-text-muted mb-1">AI Reasoning:</p>
+                    <p className="text-text-secondary">{(selectedJurisdiction.scraperConfig as ScraperConfig).discoveryReasoning}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

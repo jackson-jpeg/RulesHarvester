@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { getQueueStats } from '../services/queue/bullmqQueue.js';
 
 export const statsRouter = Router();
 
@@ -162,5 +164,76 @@ statsRouter.post(
     });
 
     res.status(201).json({ success: true, data: log });
+  })
+);
+
+// Get queue statistics
+statsRouter.get(
+  '/queue',
+  asyncHandler(async (_req, res) => {
+    const queueStats = await getQueueStats();
+
+    res.json({
+      success: true,
+      data: {
+        ...queueStats,
+        redisConnected: queueStats.waiting !== 0 || queueStats.active !== 0 ||
+                        queueStats.completed !== 0 || queueStats.failed !== 0 ||
+                        process.env.REDIS_URL !== undefined,
+      },
+    });
+  })
+);
+
+// Get system status
+statsRouter.get(
+  '/system',
+  asyncHandler(async (_req, res) => {
+    const [
+      totalJurisdictions,
+      autoSyncEnabled,
+      withScraperConfig,
+      recentWatchtowerScans,
+    ] = await Promise.all([
+      prisma.jurisdiction.count(),
+      prisma.jurisdiction.count({ where: { autoSyncEnabled: true } }),
+      prisma.jurisdiction.count({ where: { scraperConfig: { not: Prisma.DbNull } } }),
+      prisma.systemLog.count({
+        where: {
+          message: { startsWith: 'Watchtower scan' },
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
+      }),
+    ]);
+
+    const queueStats = await getQueueStats();
+
+    res.json({
+      success: true,
+      data: {
+        database: {
+          connected: true,
+          provider: 'postgresql',
+        },
+        redis: {
+          connected: !!process.env.REDIS_URL,
+          url: process.env.REDIS_URL ? '***configured***' : 'not configured',
+        },
+        queue: queueStats,
+        cartographer: {
+          jurisdictionsWithConfig: withScraperConfig,
+          totalJurisdictions,
+          coverage: totalJurisdictions > 0
+            ? Math.round((withScraperConfig / totalJurisdictions) * 100)
+            : 0,
+        },
+        watchtower: {
+          autoSyncEnabled,
+          recentScans: recentWatchtowerScans,
+        },
+        environment: process.env.NODE_ENV || 'development',
+        version: '2.0.0',
+      },
+    });
   })
 );

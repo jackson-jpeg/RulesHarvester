@@ -8,6 +8,7 @@ import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useJobsStore } from '../../store/jobsStore';
 import { useUIStore } from '../../store/uiStore';
 import { api } from '../../api/client';
+import { toast } from '../ui/Toast';
 
 export function CrawlerView() {
   const { jurisdictions, groupedJurisdictions } = useJurisdictionsStore();
@@ -61,11 +62,14 @@ export function CrawlerView() {
           rawText: rawText || undefined,
         });
         addLog(`Created ${result.jobsCreated} extraction jobs`, 'success');
+        toast.success(`Created ${result.jobsCreated} extraction jobs`);
         setSourceUrl('');
         setRawText('');
         setSelectedJurisdictions(new Set());
       } catch (error) {
-        addLog(`Failed to create bulk jobs: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        addLog(`Failed to create bulk jobs: ${msg}`, 'error');
+        toast.error(`Failed to create bulk jobs`);
       } finally {
         setIsSubmitting(false);
       }
@@ -85,10 +89,13 @@ export function CrawlerView() {
       try {
         await createJob(selectedJurisdiction, sourceUrl || 'manual-entry', rawText || undefined);
         addLog(`Extraction job created for ${selectedJurisdiction}`, 'success');
+        toast.success('Extraction job created');
         setSourceUrl('');
         setRawText('');
       } catch (error) {
-        addLog(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        addLog(`Failed to create job: ${msg}`, 'error');
+        toast.error('Failed to create job');
       } finally {
         setIsSubmitting(false);
       }

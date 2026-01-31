@@ -16,6 +16,7 @@ import { ExportView } from './components/export/ExportView';
 import { SettingsView } from './components/settings/SettingsView';
 import { WorkflowView } from './components/workflow/WorkflowView';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { ToastContainer } from './components/ui/Toast';
 
 function App() {
   // Initialize SSE connection
@@ -60,6 +61,7 @@ function App() {
 
   return (
     <ErrorBoundary>
+      <ToastContainer />
       <div className="flex h-screen bg-background text-text-primary">
         {/* Skip link for accessibility */}
         <a href="#main-content" className="skip-link">
