@@ -16,6 +16,7 @@ import { ExportView } from './components/export/ExportView';
 import { SettingsView } from './components/settings/SettingsView';
 import { WorkflowView } from './components/workflow/WorkflowView';
 import { WatchtowerView } from './components/watchtower/WatchtowerView';
+import { JurisdictionDiscoveryView } from './components/discovery/JurisdictionDiscoveryView';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastContainer } from './components/ui/Toast';
 
@@ -57,6 +58,8 @@ function App() {
         return <JurisdictionDetail />;
       case 'watchtower':
         return <WatchtowerView />;
+      case 'discovery':
+        return <JurisdictionDiscoveryView />;
       default:
         return <Dashboard />;
     }

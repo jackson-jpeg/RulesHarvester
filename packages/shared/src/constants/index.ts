@@ -55,6 +55,7 @@ export const JOB_STATUS_CONFIG = {
 
 // Jurisdiction status display config (keys match JurisdictionStatus enum)
 export const JURISDICTION_STATUS_CONFIG = {
+  DISCOVERED: { label: 'Discovered', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
   IDLE: { label: 'Idle', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
   SEARCHING: { label: 'Searching', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
   HARVESTING: { label: 'Harvesting', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
@@ -101,6 +102,14 @@ export const API_ENDPOINTS = {
 
   // SSE Events
   EVENTS: '/api/events',
+
+  // Cartographer
+  CARTOGRAPHER_DISCOVER: '/api/cartographer/discover',
+  CARTOGRAPHER_QUEUE: '/api/cartographer/queue',
+  CARTOGRAPHER_APPROVE: (id: string) => `/api/cartographer/approve/${id}`,
+  CARTOGRAPHER_REJECT: (id: string) => `/api/cartographer/reject/${id}`,
+  CARTOGRAPHER_STATUS: '/api/cartographer/status',
+  CARTOGRAPHER_BULK_APPROVE: '/api/cartographer/bulk-approve',
 };
 
 // Default pagination
@@ -115,3 +124,62 @@ export const MAX_CONCURRENT_JOBS = 5;
 export const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 export const CLAUDE_MODEL_FAST = 'claude-haiku-3-5-20241022';
 export const CLAUDE_MAX_TOKENS = 4096;
+
+// Cartographer configuration
+export const CARTOGRAPHER_RATE_LIMIT = 10; // discoveries per minute
+export const CARTOGRAPHER_MAX_RESULTS = 50; // max jurisdictions per discovery run
+
+// Trusted court domains (whitelist)
+export const TRUSTED_COURT_DOMAINS = [
+  'uscourts.gov',
+  'courts.gov',
+  'ca1.uscourts.gov',
+  'ca2.uscourts.gov',
+  'ca3.uscourts.gov',
+  'ca4.uscourts.gov',
+  'ca5.uscourts.gov',
+  'ca6.uscourts.gov',
+  'ca7.uscourts.gov',
+  'ca8.uscourts.gov',
+  'ca9.uscourts.gov',
+  'ca10.uscourts.gov',
+  'ca11.uscourts.gov',
+  'cadc.uscourts.gov',
+  'cafc.uscourts.gov',
+];
+
+// Excluded domains (known legal aggregators)
+export const EXCLUDED_DOMAINS = [
+  'westlaw.com',
+  'lexisnexis.com',
+  'findlaw.com',
+  'justia.com',
+  'law.cornell.edu',
+  'casetext.com',
+  'courtlistener.com',
+  'oyez.org',
+  'wikipedia.org',
+  'nolo.com',
+  'avvo.com',
+  'lawyers.com',
+  'martindale.com',
+];
+
+// Search query templates for Cartographer
+export const DISCOVERY_SEARCH_QUERIES = {
+  FEDERAL_CIRCUIT: [
+    'site:uscourts.gov federal circuit court local rules',
+    'US Court of Appeals local rules procedures',
+    'federal appellate court rules of practice',
+  ],
+  FEDERAL_DISTRICT: [
+    'site:uscourts.gov district court local rules',
+    'US District Court civil local rules',
+    'federal district court standing orders',
+  ],
+  STATE: [
+    'state supreme court rules of procedure',
+    'state court local rules civil practice',
+    'state judicial branch court rules',
+  ],
+};

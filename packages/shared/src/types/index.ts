@@ -31,6 +31,7 @@ export enum JobStatus {
 }
 
 export enum JurisdictionStatus {
+  DISCOVERED = 'DISCOVERED', // Pending approval from Cartographer discovery
   IDLE = 'IDLE',
   SEARCHING = 'SEARCHING',
   HARVESTING = 'HARVESTING',
@@ -229,6 +230,16 @@ export interface JurisdictionMeta {
   scraperConfig?: ScraperConfig;
   autoSyncEnabled?: boolean;
   syncFrequency?: SyncFrequency;
+  // Discovery metadata (populated by Cartographer)
+  discoverySource?: string;
+  discoveryScore?: number;
+  discoveryUrl?: string;
+  discoveryQuery?: string;
+  discoveredAt?: Date;
+  approvedAt?: Date;
+  approvedBy?: string;
+  rejectedAt?: Date;
+  rejectionReason?: string;
 }
 
 // AI Agent
@@ -275,7 +286,11 @@ export interface SSEEvent {
     | 'conflict_detected'
     | 'watchtower_scan_started'
     | 'watchtower_scan_complete'
-    | 'watchtower_change_detected';
+    | 'watchtower_change_detected'
+    | 'cartographer_discovery_started'
+    | 'cartographer_discovery_complete'
+    | 'cartographer_discovery_failed'
+    | 'jurisdiction_approved';
   payload: unknown;
   timestamp: Date;
 }
@@ -354,4 +369,60 @@ export interface AuthorityReconciliation {
   conflicts: RuleConflict[];
   appellateWarnings: string[];
   authorityStatus: 'valid' | 'superseded' | 'contested';
+}
+
+// Cartographer types for jurisdiction discovery
+export interface CartographerSearchResult {
+  url: string;
+  title: string;
+  snippet: string;
+  domain: string;
+}
+
+export interface CartographerDiscoveryResponse {
+  isLegitimateCourtSite: boolean;
+  jurisdictionType: JurisdictionType | null;
+  suggestedName: string;
+  suggestedCode: string;
+  hasRulesSection: boolean;
+  rulesPageUrl: string | null;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface JurisdictionDiscoveryCandidate {
+  id: string;
+  name: string;
+  code: string;
+  type: JurisdictionType;
+  courtWebsite: string;
+  discoveryScore: number;
+  discoveryUrl: string;
+  discoveryQuery: string;
+  discoverySource: string;
+  discoveredAt: Date;
+  hasRulesSection: boolean;
+  rulesPageUrl?: string;
+  reasoning: string;
+}
+
+export interface CartographerDiscoverRequest {
+  jurisdictionTypes?: JurisdictionType[];
+  maxResults?: number;
+  customQueries?: string[];
+}
+
+export interface CartographerApprovalRequest {
+  name?: string;
+  code?: string;
+  autoSyncEnabled?: boolean;
+  syncFrequency?: SyncFrequency;
+}
+
+export interface CartographerStatus {
+  isRunning: boolean;
+  lastRunAt?: Date;
+  totalDiscovered: number;
+  pendingApproval: number;
+  approvedToday: number;
 }

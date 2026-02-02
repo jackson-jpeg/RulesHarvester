@@ -203,6 +203,41 @@ export function useSSE() {
             break;
           }
 
+          case 'cartographer_discovery_started': {
+            addLog('Cartographer: Discovery started', LogType.INFO);
+            break;
+          }
+
+          case 'cartographer_discovery_complete': {
+            const payload = data.payload as { discovered: number } | undefined;
+            if (payload) {
+              addLog(
+                `Cartographer: Discovery complete - ${payload.discovered} new jurisdictions found`,
+                LogType.SUCCESS
+              );
+            }
+            break;
+          }
+
+          case 'cartographer_discovery_failed': {
+            const payload = data.payload as { error: string } | undefined;
+            if (payload) {
+              addLog(`Cartographer: Discovery failed - ${payload.error}`, LogType.ERROR);
+            }
+            break;
+          }
+
+          case 'jurisdiction_approved': {
+            const payload = data.payload as {
+              jurisdictionId: string;
+              name: string;
+            } | undefined;
+            if (payload) {
+              addLog(`Jurisdiction approved: ${payload.name}`, LogType.SUCCESS);
+            }
+            break;
+          }
+
           default:
             console.log('Unknown SSE event:', data.type);
         }

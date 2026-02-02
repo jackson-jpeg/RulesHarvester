@@ -224,6 +224,46 @@ export const WatchtowerHashMetadataSchema = z.object({
   checkedAt: z.string().optional(),
 });
 
+// Cartographer discovery response schema (from Claude court analysis tool)
+export const CartographerDiscoveryResponseSchema = z.object({
+  isLegitimateCourtSite: z.boolean(),
+  jurisdictionType: z.nativeEnum(JurisdictionType).nullable(),
+  suggestedName: z.string(),
+  suggestedCode: z.string(),
+  hasRulesSection: z.boolean(),
+  rulesPageUrl: z.string().nullable(),
+  confidence: z.number().min(0).max(100),
+  reasoning: z.string(),
+});
+
+// Cartographer search result schema
+export const CartographerSearchResultSchema = z.object({
+  url: z.string().url(),
+  title: z.string(),
+  snippet: z.string(),
+  domain: z.string(),
+});
+
+// Jurisdiction approval request schema
+export const JurisdictionApprovalRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  code: z.string().min(1).optional(),
+  autoSyncEnabled: z.boolean().optional(),
+  syncFrequency: z.nativeEnum(SyncFrequency).optional(),
+});
+
+// Jurisdiction rejection request schema
+export const JurisdictionRejectionRequestSchema = z.object({
+  reason: z.string().min(1),
+});
+
+// Cartographer discover request schema
+export const CartographerDiscoverRequestSchema = z.object({
+  jurisdictionTypes: z.array(z.nativeEnum(JurisdictionType)).optional(),
+  maxResults: z.number().int().min(1).max(100).optional(),
+  customQueries: z.array(z.string()).optional(),
+});
+
 // Pagination query schema
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -261,3 +301,8 @@ export type JurisdictionFilter = z.infer<typeof JurisdictionFilterSchema>;
 export type ScraperDiscoveryResponse = z.infer<typeof ScraperDiscoveryResponseSchema>;
 export type WatchtowerHashMetadata = z.infer<typeof WatchtowerHashMetadataSchema>;
 export type ScraperConfigInput = z.infer<typeof ScraperConfigSchema>;
+export type CartographerDiscoveryResponseInput = z.infer<typeof CartographerDiscoveryResponseSchema>;
+export type CartographerSearchResultInput = z.infer<typeof CartographerSearchResultSchema>;
+export type JurisdictionApprovalInput = z.infer<typeof JurisdictionApprovalRequestSchema>;
+export type JurisdictionRejectionInput = z.infer<typeof JurisdictionRejectionRequestSchema>;
+export type CartographerDiscoverInput = z.infer<typeof CartographerDiscoverRequestSchema>;

@@ -29,6 +29,17 @@ model Jurisdiction {
   autoSyncEnabled  Boolean  @default(false)
   syncFrequency    String   @default("WEEKLY") // DAILY, WEEKLY, MANUAL_ONLY
 
+  // Discovery metadata (populated by Cartographer)
+  discoverySource    String?    // 'claude_web_search', 'manual'
+  discoveryScore     Float?     // AI confidence (0-100)
+  discoveryUrl       String?    // Original search result URL
+  discoveryQuery     String?    // Search query that found this
+  discoveredAt       DateTime?
+  approvedAt         DateTime?
+  approvedBy         String?
+  rejectedAt         DateTime?
+  rejectionReason    String?
+
   // Relations
   parent   Jurisdiction?  @relation("JurisdictionHierarchy", fields: [parentId], references: [id])
   children Jurisdiction[] @relation("JurisdictionHierarchy")
@@ -38,6 +49,8 @@ model Jurisdiction {
   @@index([type])
   @@index([status])
   @@index([parentId])
+  @@index([status, discoveryScore])
+  @@index([discoveredAt])
 }
 
 // Rule entity
@@ -164,6 +177,7 @@ enum JurisdictionType {
 }
 
 enum JurisdictionStatus {
+  DISCOVERED     // NEW: Pending approval from Cartographer discovery
   IDLE
   SEARCHING
   HARVESTING

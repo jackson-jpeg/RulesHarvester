@@ -14,6 +14,7 @@ import { statsRouter } from './routes/stats.js';
 import { conflictsRouter } from './routes/conflicts.js';
 import { bulkRouter } from './routes/bulk.js';
 import { exportRouter } from './routes/export.js';
+import { cartographerRouter } from './routes/cartographer.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { sseManager } from './services/sse/sseManager.js';
@@ -121,6 +122,7 @@ app.use('/api/stats', statsRouter);
 app.use('/api/conflicts', conflictsRouter);
 app.use('/api/bulk', bulkRouter);
 app.use('/api/export', exportRouter);
+app.use('/api/cartographer', cartographerRouter);
 
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {

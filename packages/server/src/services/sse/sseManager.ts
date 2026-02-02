@@ -146,6 +146,42 @@ class SSEManager {
     this.broadcast(event);
   }
 
+  sendCartographerDiscoveryStarted(): void {
+    const event: SSEEvent = {
+      type: 'cartographer_discovery_started' as SSEEvent['type'],
+      payload: {},
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendCartographerDiscoveryComplete(discovered: number): void {
+    const event: SSEEvent = {
+      type: 'cartographer_discovery_complete' as SSEEvent['type'],
+      payload: { discovered },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendCartographerDiscoveryFailed(error: string): void {
+    const event: SSEEvent = {
+      type: 'cartographer_discovery_failed' as SSEEvent['type'],
+      payload: { error },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendJurisdictionApproved(jurisdictionId: string, name: string): void {
+    const event: SSEEvent = {
+      type: 'jurisdiction_approved' as SSEEvent['type'],
+      payload: { jurisdictionId, name },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
   getClientCount(): number {
     return this.clients.size;
   }

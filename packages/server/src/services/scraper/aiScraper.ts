@@ -7,6 +7,20 @@ import { GENERIC_CONFIG } from './courtSites.js';
 
 const anthropic = new Anthropic();
 
+// Selector validation result
+export interface SelectorValidationResult {
+  isValid: boolean;
+  matchCounts: {
+    ruleListSelector: number;
+    ruleLinkSelector: number;
+    ruleContentSelector: number;
+    ruleCodeSelector?: number;
+    ruleTitleSelector?: number;
+    paginationSelector?: number;
+  };
+  errors: string[];
+}
+
 // Clean HTML for LLM - remove noise, compress DOM
 export function cleanHtmlForLLM(html: string): string {
   const $ = cheerio.load(html);
@@ -175,5 +189,84 @@ export async function getScrapingStrategy(
     });
 
     return fallback;
+  }
+}
+
+/**
+ * Validate that discovered selectors actually match elements on the page
+ */
+export async function validateSelectors(
+  url: string,
+  config: ScraperConfig
+): Promise<SelectorValidationResult> {
+  const errors: string[] = [];
+  const matchCounts = {
+    ruleListSelector: 0,
+    ruleLinkSelector: 0,
+    ruleContentSelector: 0,
+    ruleCodeSelector: 0,
+    ruleTitleSelector: 0,
+    paginationSelector: 0,
+  };
+
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'RulesHarvester/1.0' },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      return {
+        isValid: false,
+        matchCounts,
+        errors: [`Failed to fetch page: ${response.status}`],
+      };
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    // Check required selectors
+    matchCounts.ruleListSelector = $(config.ruleListSelector).length;
+    if (matchCounts.ruleListSelector === 0) {
+      errors.push(`ruleListSelector "${config.ruleListSelector}" matches 0 elements`);
+    }
+
+    matchCounts.ruleLinkSelector = $(config.ruleLinkSelector).length;
+    if (matchCounts.ruleLinkSelector === 0) {
+      errors.push(`ruleLinkSelector "${config.ruleLinkSelector}" matches 0 elements`);
+    }
+
+    matchCounts.ruleContentSelector = $(config.ruleContentSelector).length;
+    if (matchCounts.ruleContentSelector === 0) {
+      errors.push(`ruleContentSelector "${config.ruleContentSelector}" matches 0 elements`);
+    }
+
+    // Check optional selectors (only add errors if they're defined but don't match)
+    if (config.ruleCodeSelector) {
+      matchCounts.ruleCodeSelector = $(config.ruleCodeSelector).length;
+    }
+
+    if (config.ruleTitleSelector) {
+      matchCounts.ruleTitleSelector = $(config.ruleTitleSelector).length;
+    }
+
+    if (config.paginationSelector) {
+      matchCounts.paginationSelector = $(config.paginationSelector).length;
+    }
+
+    // Valid if all required selectors match at least one element
+    const isValid =
+      matchCounts.ruleListSelector > 0 &&
+      matchCounts.ruleLinkSelector > 0 &&
+      matchCounts.ruleContentSelector > 0;
+
+    return { isValid, matchCounts, errors };
+  } catch (error) {
+    return {
+      isValid: false,
+      matchCounts,
+      errors: [error instanceof Error ? error.message : 'Unknown error'],
+    };
   }
 }

@@ -12,7 +12,8 @@ type TabId =
   | 'export'
   | 'settings'
   | 'jurisdiction-detail'
-  | 'watchtower';
+  | 'watchtower'
+  | 'discovery';
 
 type SSEConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
