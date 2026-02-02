@@ -8,6 +8,7 @@ import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
 import { api } from '../../api/client';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { JobStatus, JurisdictionStatus, LogType } from '@rulesharvester/shared';
 
 interface DashboardStats {
   totalRules: number;
@@ -138,7 +139,7 @@ export function Dashboard() {
           <CardContent>
             <p className="text-sm text-text-secondary">Pending Jobs</p>
             <p className="text-3xl font-bold text-blue-400">
-              {stats?.pendingJobs || jobs.filter((j) => j.status === 'pending' || j.status === 'processing').length}
+              {stats?.pendingJobs || jobs.filter((j) => j.status === JobStatus.PENDING || j.status === JobStatus.PROCESSING).length}
             </p>
           </CardContent>
         </Card>
@@ -185,11 +186,11 @@ export function Dashboard() {
                         key={j.id}
                         onClick={() => handleJurisdictionClick(j.id)}
                         className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                          j.status === 'synced'
+                          j.status === JurisdictionStatus.SYNCED
                             ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                            : j.status === 'harvesting' || j.status === 'searching'
+                            : j.status === JurisdictionStatus.HARVESTING || j.status === JurisdictionStatus.SEARCHING
                             ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                            : j.status === 'failed'
+                            : j.status === JurisdictionStatus.FAILED
                             ? 'bg-rose-500/20 text-rose-400'
                             : 'bg-surface-elevated text-text-secondary hover:bg-border'
                         }`}
@@ -209,11 +210,11 @@ export function Dashboard() {
                         key={j.id}
                         onClick={() => handleJurisdictionClick(j.id)}
                         className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          j.status === 'synced'
+                          j.status === JurisdictionStatus.SYNCED
                             ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                            : j.status === 'harvesting' || j.status === 'searching'
+                            : j.status === JurisdictionStatus.HARVESTING || j.status === JurisdictionStatus.SEARCHING
                             ? 'bg-amber-500/20 text-amber-400 animate-pulse'
-                            : j.status === 'failed'
+                            : j.status === JurisdictionStatus.FAILED
                             ? 'bg-rose-500/20 text-rose-400'
                             : 'bg-surface-elevated text-text-secondary hover:bg-border'
                         }`}
@@ -319,11 +320,11 @@ export function Dashboard() {
                   </div>
                   <Badge
                     variant={
-                      job.status === 'completed'
+                      job.status === JobStatus.COMPLETED
                         ? 'success'
-                        : job.status === 'failed'
+                        : job.status === JobStatus.FAILED
                         ? 'error'
-                        : job.status === 'processing'
+                        : job.status === JobStatus.PROCESSING
                         ? 'warning'
                         : 'default'
                     }
@@ -348,13 +349,13 @@ export function Dashboard() {
                 <div
                   key={log.id}
                   className={`py-1 ${
-                    log.type === 'error'
+                    log.type === LogType.ERROR
                       ? 'text-rose-400'
-                      : log.type === 'success'
+                      : log.type === LogType.SUCCESS
                       ? 'text-emerald-400'
-                      : log.type === 'warn'
+                      : log.type === LogType.WARN
                       ? 'text-amber-400'
-                      : log.type === 'ai'
+                      : log.type === LogType.AI
                       ? 'text-purple-400'
                       : 'text-text-secondary'
                   }`}

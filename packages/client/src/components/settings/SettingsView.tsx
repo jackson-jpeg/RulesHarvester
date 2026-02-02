@@ -7,6 +7,7 @@ import { Skeleton } from '../ui/Spinner';
 import { useUIStore } from '../../store/uiStore';
 import { api } from '../../api/client';
 import { toast } from '../ui/Toast';
+import { LogType } from '@rulesharvester/shared';
 
 interface SystemStatus {
   database: { connected: boolean; provider: string };
@@ -85,14 +86,14 @@ export function SettingsView() {
   const handleSave = () => {
     saveSettings(settings);
     setHasChanges(false);
-    addLog('Settings saved', 'success');
+    addLog('Settings saved', LogType.SUCCESS);
     toast.success('Settings saved successfully');
   };
 
   const handleClearData = () => {
     if (window.confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
       localStorage.clear();
-      addLog('Local data cleared', 'warn');
+      addLog('Local data cleared', LogType.WARN);
       toast.warning('Local data cleared');
       window.location.reload();
     }

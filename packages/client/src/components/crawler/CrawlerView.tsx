@@ -9,6 +9,7 @@ import { useJobsStore } from '../../store/jobsStore';
 import { useUIStore } from '../../store/uiStore';
 import { api } from '../../api/client';
 import { toast } from '../ui/Toast';
+import { JurisdictionStatus, LogType } from '@rulesharvester/shared';
 
 export function CrawlerView() {
   const { jurisdictions, groupedJurisdictions } = useJurisdictionsStore();
@@ -45,12 +46,12 @@ export function CrawlerView() {
     if (isBulkMode) {
       // Bulk extraction
       if (selectedJurisdictions.size === 0) {
-        addLog('Please select at least one jurisdiction', 'warn');
+        addLog('Please select at least one jurisdiction', LogType.WARN);
         return;
       }
 
       if (!sourceUrl && !rawText) {
-        addLog('Please provide a source URL or paste rule text', 'warn');
+        addLog('Please provide a source URL or paste rule text', LogType.WARN);
         return;
       }
 
@@ -61,14 +62,14 @@ export function CrawlerView() {
           sourceUrl: sourceUrl || undefined,
           rawText: rawText || undefined,
         });
-        addLog(`Created ${result.jobsCreated} extraction jobs`, 'success');
+        addLog(`Created ${result.jobsCreated} extraction jobs`, LogType.SUCCESS);
         toast.success(`Created ${result.jobsCreated} extraction jobs`);
         setSourceUrl('');
         setRawText('');
         setSelectedJurisdictions(new Set());
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        addLog(`Failed to create bulk jobs: ${msg}`, 'error');
+        addLog(`Failed to create bulk jobs: ${msg}`, LogType.ERROR);
         toast.error(`Failed to create bulk jobs`);
       } finally {
         setIsSubmitting(false);
@@ -76,25 +77,25 @@ export function CrawlerView() {
     } else {
       // Single extraction
       if (!selectedJurisdiction) {
-        addLog('Please select a jurisdiction', 'warn');
+        addLog('Please select a jurisdiction', LogType.WARN);
         return;
       }
 
       if (!sourceUrl && !rawText) {
-        addLog('Please provide a source URL or paste rule text', 'warn');
+        addLog('Please provide a source URL or paste rule text', LogType.WARN);
         return;
       }
 
       setIsSubmitting(true);
       try {
         await createJob(selectedJurisdiction, sourceUrl || 'manual-entry', rawText || undefined);
-        addLog(`Extraction job created for ${selectedJurisdiction}`, 'success');
+        addLog(`Extraction job created for ${selectedJurisdiction}`, LogType.SUCCESS);
         toast.success('Extraction job created');
         setSourceUrl('');
         setRawText('');
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        addLog(`Failed to create job: ${msg}`, 'error');
+        addLog(`Failed to create job: ${msg}`, LogType.ERROR);
         toast.error('Failed to create job');
       } finally {
         setIsSubmitting(false);
@@ -223,7 +224,7 @@ export function CrawlerView() {
                         className={`px-3 py-1.5 rounded text-sm transition-colors ${
                           (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                             ? 'bg-amber-500 text-black'
-                            : j.status === 'synced'
+                            : j.status === JurisdictionStatus.SYNCED
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : 'bg-surface-elevated text-text-secondary hover:bg-border'
                         }`}
@@ -247,7 +248,7 @@ export function CrawlerView() {
                         className={`px-2 py-1 rounded text-xs transition-colors ${
                           (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                             ? 'bg-amber-500 text-black'
-                            : j.status === 'synced'
+                            : j.status === JurisdictionStatus.SYNCED
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : 'bg-surface-elevated text-text-secondary hover:bg-border'
                         }`}
@@ -278,7 +279,7 @@ export function CrawlerView() {
                     className={`px-2 py-1 rounded text-xs transition-colors ${
                       (isBulkMode ? selectedJurisdictions.has(j.id) : selectedJurisdiction === j.id)
                         ? 'bg-amber-500 text-black'
-                        : j.status === 'synced'
+                        : j.status === JurisdictionStatus.SYNCED
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : 'bg-surface-elevated text-text-secondary hover:bg-border'
                     }`}

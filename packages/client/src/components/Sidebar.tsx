@@ -3,19 +3,20 @@ import { useJurisdictionsStore } from '../store/jurisdictionsStore';
 import { useJobsStore } from '../store/jobsStore';
 import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
+import { JobStatus, JurisdictionStatus, LogType } from '@rulesharvester/shared';
 
 export function Sidebar() {
   const { sidebarOpen, toggleSidebar, systemLogs, agents, sseConnectionStatus } = useUIStore();
   const { groupedJurisdictions } = useJurisdictionsStore();
   const { jobs } = useJobsStore();
 
-  const activeJobs = jobs.filter(j => j.status === 'processing' || j.status === 'pending');
-  const completedJobs = jobs.filter(j => j.status === 'completed').length;
-  const failedJobs = jobs.filter(j => j.status === 'failed').length;
+  const activeJobs = jobs.filter(j => j.status === JobStatus.PROCESSING || j.status === JobStatus.PENDING);
+  const completedJobs = jobs.filter(j => j.status === JobStatus.COMPLETED).length;
+  const failedJobs = jobs.filter(j => j.status === JobStatus.FAILED).length;
 
   const syncedCount = groupedJurisdictions
     ? [...groupedJurisdictions.federalCircuits, ...groupedJurisdictions.federalDistricts, ...groupedJurisdictions.states].filter(
-        (j) => j.status === 'synced'
+        (j) => j.status === JurisdictionStatus.SYNCED
       ).length
     : 0;
 
@@ -29,8 +30,8 @@ export function Sidebar() {
     <aside
       className={`
         fixed top-0 left-0 h-full bg-surface border-r border-border
-        transition-all duration-300 z-20
-        ${sidebarOpen ? 'w-64' : 'w-16'}
+        transition-all duration-300 z-20 flex flex-col
+        ${sidebarOpen ? 'w-64' : 'w-16 overflow-hidden'}
       `}
       aria-label="Sidebar"
     >
@@ -78,7 +79,7 @@ export function Sidebar() {
       </div>
 
       {sidebarOpen && (
-        <>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {/* Stats */}
           <div className="p-4 border-b border-border">
             <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
@@ -174,7 +175,7 @@ export function Sidebar() {
           </div>
 
           {/* Recent Logs */}
-          <div className="p-4 flex-1 overflow-hidden">
+          <div className="p-4">
             <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
               System Logs
             </h2>
@@ -183,13 +184,13 @@ export function Sidebar() {
                 <div
                   key={log.id}
                   className={`text-xs py-1 px-2 rounded ${
-                    log.type === 'error'
+                    log.type === LogType.ERROR
                       ? 'bg-rose-500/10 text-rose-400'
-                      : log.type === 'success'
+                      : log.type === LogType.SUCCESS
                       ? 'bg-emerald-500/10 text-emerald-400'
-                      : log.type === 'warn'
+                      : log.type === LogType.WARN
                       ? 'bg-amber-500/10 text-amber-400'
-                      : log.type === 'ai'
+                      : log.type === LogType.AI
                       ? 'bg-purple-500/10 text-purple-400'
                       : 'bg-surface-elevated text-text-secondary'
                   }`}
@@ -202,7 +203,7 @@ export function Sidebar() {
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </aside>
   );

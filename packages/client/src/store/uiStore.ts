@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { SystemLog, AIAgent } from '@rulesharvester/shared';
-import { AgentStatus } from '@rulesharvester/shared';
+import { AgentStatus, LogType } from '@rulesharvester/shared';
 
 type TabId =
   | 'dashboard'

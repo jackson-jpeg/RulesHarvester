@@ -330,23 +330,38 @@ discoverRouter.post(
       throw new ValidationError('candidateIds array is required');
     }
 
-    const results = [];
+    // Fetch all candidates in a single query (fix N+1)
+    const candidates = await prisma.discoveryCandidate.findMany({
+      where: { id: { in: candidateIds } },
+    });
 
-    for (const id of candidateIds) {
-      const candidate = await prisma.discoveryCandidate.findUnique({
-        where: { id },
+    // Build lookup map for quick access
+    const candidateMap = new Map(candidates.map(c => [c.id, c]));
+
+    // Identify candidates to update
+    const toUpdate = candidates
+      .filter(c => c.status === 'DISCOVERED')
+      .map(c => c.id);
+
+    // Batch update in a transaction
+    if (toUpdate.length > 0) {
+      await prisma.discoveryCandidate.updateMany({
+        where: { id: { in: toUpdate } },
+        data: { status: 'PROCESSING' },
       });
-
-      if (candidate && candidate.status === 'DISCOVERED') {
-        await prisma.discoveryCandidate.update({
-          where: { id },
-          data: { status: 'PROCESSING' },
-        });
-        results.push({ id, status: 'queued' });
-      } else {
-        results.push({ id, status: 'skipped' });
-      }
     }
+
+    // Build results based on original candidateIds order
+    const results = candidateIds.map(id => {
+      const candidate = candidateMap.get(id);
+      if (!candidate) {
+        return { id, status: 'not_found' };
+      }
+      if (candidate.status === 'DISCOVERED') {
+        return { id, status: 'queued' };
+      }
+      return { id, status: 'skipped' };
+    });
 
     res.json({ success: true, data: results });
   })

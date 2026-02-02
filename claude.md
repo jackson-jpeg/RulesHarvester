@@ -157,3 +157,46 @@ Tests are in `packages/*/tests/` directories. Run with `npm run test`.
 - Proper SHA-256 integrity hash (fixes broken 100-char truncation)
 - Batch processing (100 rules at a time) for memory efficiency
 - Files: `export.ts` (new router), `ExportView.tsx` (updated to use backend)
+
+## Production Audit Improvements (2026-02-02)
+
+### Utilities Added
+- `packages/server/src/utils/pagination.ts` - Shared pagination helpers (`parsePaginationParams`, `buildPaginatedResponse`)
+- `packages/server/src/utils/formatters.ts` - Export format converters (CSV, YAML)
+- `packages/server/src/utils/logger.ts` - Structured logging with levels (debug, info, warn, error)
+- `packages/server/src/utils/response.ts` - Standardized API response helpers (`sendSuccess`, `sendError`)
+- `packages/server/src/middleware/requestId.ts` - Request ID tracking (X-Request-ID header)
+- `packages/client/src/utils/statusColors.ts` - Status color mapping utilities
+- `packages/client/src/hooks/useDebounce.ts` - Debounce hook for search inputs
+
+### New Components
+- `packages/client/src/components/ui/ViewErrorBoundary.tsx` - Error boundary for views
+- `packages/client/src/components/ui/ConnectionStatus.tsx` - Reusable SSE connection indicator
+- `packages/client/src/components/ui/ConfirmationModal.tsx` - Custom confirmation modal
+
+### Updated Patterns
+- **Button Debounce**: All Button components have 300ms debounce by default (configurable via `debounceMs` prop)
+- **Enum Casing**: TypeScript enums now use UPPERCASE values to match Prisma (JobStatus, JurisdictionStatus, LogType, DiscoveryStatus)
+- **Claude Model Constants**: `CLAUDE_MODEL` and `CLAUDE_MODEL_FAST` in shared constants
+- **Request ID Tracking**: All API requests include X-Request-ID header for tracing
+- **Tab Accessibility**: Tabs use proper ARIA roles (tablist, tab, tabpanel)
+- **Search Debounce**: LibraryView search input debounced by 300ms
+- **TypeScript Strict Mode**: Added `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`
+
+### Schemas Added
+- `ScraperDiscoveryResponseSchema` - Validates AI scraper tool responses
+- `WatchtowerHashMetadataSchema` - Type-safe watchtower hash metadata
+- `ScraperConfigSchema` - Complete scraper configuration validation
+- Extended `JurisdictionMetaSchema` with `scraperConfig`, `autoSyncEnabled`, `syncFrequency`
+
+### Security Fixes
+- Added Zod validation to aiScraper Claude tool responses (prevents unsafe type casts)
+- Added type guard for watchtower hash metadata
+- Added concurrent execution protection to watchtower scheduler (mutex with 30min auto-release)
+- Fixed N+1 query in discover.ts batch/acquire endpoint
+- Button debounce prevents double-click API calls
+- Fixed direct Zustand state mutation (added `selectRule` action)
+
+### API Constants
+- Added `WATCHTOWER_STATUS`, `WATCHTOWER_SCAN`, `EVENTS` endpoints to API_ENDPOINTS
+- Updated `JOB_STATUS_CONFIG` and `JURISDICTION_STATUS_CONFIG` keys to UPPERCASE

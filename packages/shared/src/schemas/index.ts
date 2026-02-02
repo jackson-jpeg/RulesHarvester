@@ -6,6 +6,9 @@ import {
   JurisdictionStatus,
   JurisdictionType,
   ConflictStatus,
+  DiscoveryStatus,
+  LogType,
+  SyncFrequency,
 } from '../types/index.js';
 
 // Deadline schema
@@ -109,7 +112,7 @@ export const DiscoveryCandidateSchema = z.object({
   snippet: z.string(),
   sourceUrl: z.string().url(),
   relevanceScore: z.number().min(0).max(100),
-  status: z.enum(['discovered', 'processing', 'acquired', 'rejected']),
+  status: z.nativeEnum(DiscoveryStatus),
 });
 
 // Extraction job schema
@@ -128,6 +131,22 @@ export const ExtractionJobSchema = z.object({
   updatedAt: z.date(),
 });
 
+// Scraper config schema
+export const ScraperConfigSchema = z.object({
+  name: z.string(),
+  baseUrl: z.string().url(),
+  ruleListSelector: z.string(),
+  ruleLinkSelector: z.string(),
+  ruleContentSelector: z.string(),
+  ruleCodeSelector: z.string().optional(),
+  ruleTitleSelector: z.string().optional(),
+  paginationSelector: z.string().optional(),
+  rateLimitMs: z.number().int().min(0),
+  discoveredAt: z.string().optional(),
+  confidence: z.number().min(0).max(100).optional(),
+  discoveryReasoning: z.string().optional(),
+});
+
 // Jurisdiction meta schema
 export const JurisdictionMetaSchema = z.object({
   id: z.string(),
@@ -140,6 +159,9 @@ export const JurisdictionMetaSchema = z.object({
   parentId: z.string().optional(),
   courtWebsite: z.string().url().optional(),
   lastSyncedAt: z.date().optional(),
+  scraperConfig: ScraperConfigSchema.optional(),
+  autoSyncEnabled: z.boolean().optional(),
+  syncFrequency: z.nativeEnum(SyncFrequency).optional(),
 });
 
 // API request schemas
@@ -182,6 +204,26 @@ export const ExtractionResultSchema = z.object({
   extractionReasoning: z.string(),
 });
 
+// Scraper discovery response schema (from AI Cartographer tool)
+export const ScraperDiscoveryResponseSchema = z.object({
+  ruleListSelector: z.string(),
+  ruleLinkSelector: z.string(),
+  ruleContentSelector: z.string(),
+  ruleCodeSelector: z.string().optional(),
+  ruleTitleSelector: z.string().optional(),
+  paginationSelector: z.string().optional(),
+  confidence: z.number().min(0).max(100),
+  reasoning: z.string(),
+});
+
+// Watchtower hash metadata schema
+export const WatchtowerHashMetadataSchema = z.object({
+  jurisdictionId: z.string().optional(),
+  url: z.string().optional(),
+  hash: z.string().optional(),
+  checkedAt: z.string().optional(),
+});
+
 // Pagination query schema
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -216,3 +258,6 @@ export type ExtractionResultInput = z.infer<typeof ExtractionResultSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
 export type RuleFilter = z.infer<typeof RuleFilterSchema>;
 export type JurisdictionFilter = z.infer<typeof JurisdictionFilterSchema>;
+export type ScraperDiscoveryResponse = z.infer<typeof ScraperDiscoveryResponseSchema>;
+export type WatchtowerHashMetadata = z.infer<typeof WatchtowerHashMetadataSchema>;
+export type ScraperConfigInput = z.infer<typeof ScraperConfigSchema>;

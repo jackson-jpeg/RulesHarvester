@@ -27,6 +27,7 @@ interface RulesState {
   deleteRule: (id: string) => Promise<void>;
   setFilters: (filters: RulesState['filters']) => void;
   setPage: (page: number) => void;
+  selectRule: (rule: RuleTemplate | null) => void;
   clearSelectedRule: () => void;
   addRule: (rule: RuleTemplate) => void;
 }
@@ -132,6 +133,8 @@ export const useRulesStore = create<RulesState>((set, get) => ({
     set({ pagination: { ...get().pagination, page } });
     get().fetchRules();
   },
+
+  selectRule: (rule) => set({ selectedRule: rule }),
 
   clearSelectedRule: () => set({ selectedRule: null }),
 

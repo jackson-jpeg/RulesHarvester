@@ -7,8 +7,9 @@ import { Badge } from '../ui/Badge';
 import { Skeleton } from '../ui/Spinner';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
+import { useDebounce } from '../../hooks/useDebounce';
 import { api } from '../../api/client';
-import { TRIGGER_TYPE_LABELS } from '@rulesharvester/shared';
+import { TRIGGER_TYPE_LABELS, LogType } from '@rulesharvester/shared';
 import type { RuleTemplate } from '@rulesharvester/shared';
 
 const triggerTypeOptions = Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => ({
@@ -25,15 +26,25 @@ export function LibraryView() {
     fetchRules,
     setFilters,
     setPage,
+    selectRule,
   } = useRulesStore();
   const { setActiveTab, addLog } = useUIStore();
 
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
   const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
+  const [searchInput, setSearchInput] = useState(filters.search || '');
+  const debouncedSearch = useDebounce(searchInput, 300);
 
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  // Apply debounced search filter
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      setFilters({ ...filters, search: debouncedSearch || undefined });
+    }
+  }, [debouncedSearch]);
 
   // Clear selections when rules change
   useEffect(() => {
@@ -41,12 +52,12 @@ export function LibraryView() {
   }, [rules]);
 
   const handleRuleClick = (rule: RuleTemplate) => {
-    useRulesStore.setState({ selectedRule: rule });
+    selectRule(rule);
     setActiveTab('verify');
   };
 
   const handleSearch = (search: string) => {
-    setFilters({ ...filters, search });
+    setSearchInput(search);
   };
 
   const handleTriggerFilter = (triggerType: string) => {
@@ -84,11 +95,11 @@ export function LibraryView() {
     setIsBulkActionLoading(true);
     try {
       await api.delete('/bulk/rules', { ruleIds: Array.from(selectedRuleIds) });
-      addLog(`Deleted ${selectedRuleIds.size} rules`, 'success');
+      addLog(`Deleted ${selectedRuleIds.size} rules`, LogType.SUCCESS);
       setSelectedRuleIds(new Set());
       fetchRules();
     } catch (error) {
-      addLog('Failed to delete rules', 'error');
+      addLog('Failed to delete rules', LogType.ERROR);
     } finally {
       setIsBulkActionLoading(false);
     }
@@ -112,7 +123,7 @@ export function LibraryView() {
           <div className="flex-1 min-w-[200px]">
             <Input
               placeholder="Search rules..."
-              value={filters.search || ''}
+              value={searchInput}
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
@@ -125,7 +136,10 @@ export function LibraryView() {
           </div>
           <Button
             variant="ghost"
-            onClick={() => setFilters({})}
+            onClick={() => {
+              setSearchInput('');
+              setFilters({});
+            }}
           >
             Clear Filters
           </Button>

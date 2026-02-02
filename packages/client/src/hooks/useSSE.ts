@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useJobsStore } from '../store/jobsStore';
 import { useRulesStore } from '../store/rulesStore';
 import { useUIStore } from '../store/uiStore';
+import { LogType } from '@rulesharvester/shared';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -56,7 +57,7 @@ export function useSSE() {
       // Reset reconnect delay on successful connection
       reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
       setSSEConnectionStatus('connected');
-      addLog('Connected to server', 'success');
+      addLog('Connected to server', LogType.SUCCESS);
 
       // Resync state after reconnection to catch any missed events
       resyncState();
@@ -71,7 +72,7 @@ export function useSSE() {
 
       // Schedule reconnection with exponential backoff
       const delay = reconnectDelayRef.current;
-      addLog(`Connection lost. Reconnecting in ${delay / 1000}s...`, 'warn');
+      addLog(`Connection lost. Reconnecting in ${delay / 1000}s...`, LogType.WARN);
 
       reconnectTimeoutRef.current = setTimeout(() => {
         if (!isUnmountedRef.current) {
@@ -119,7 +120,7 @@ export function useSSE() {
             } | undefined;
             if (payload?.jobId) {
               completeJob(payload.jobId, payload.ruleId);
-              addLog(`Rule extracted for ${payload.jurisdictionId}`, 'success');
+              addLog(`Rule extracted for ${payload.jurisdictionId}`, LogType.SUCCESS);
               // Refresh rules to get the new rule data
               fetchRules();
             }
@@ -133,7 +134,7 @@ export function useSSE() {
             } | undefined;
             if (payload?.jobId) {
               failJob(payload.jobId, payload.error);
-              addLog(`Extraction failed: ${payload.error}`, 'error');
+              addLog(`Extraction failed: ${payload.error}`, LogType.ERROR);
             }
             break;
           }
@@ -144,7 +145,7 @@ export function useSSE() {
             } | undefined;
             if (payload?.rule) {
               addRule(payload.rule);
-              addLog(`New rule created: ${payload.rule.ruleCode}`, 'success');
+              addLog(`New rule created: ${payload.rule.ruleCode}`, LogType.SUCCESS);
             }
             break;
           }
@@ -152,7 +153,7 @@ export function useSSE() {
           case 'rule_updated': {
             const payload = data.payload as { ruleId: string; jurisdictionId: string } | undefined;
             if (payload?.ruleId) {
-              addLog(`Rule ${payload.ruleId} updated`, 'info');
+              addLog(`Rule ${payload.ruleId} updated`, LogType.INFO);
               // Refresh rules to get updated data
               fetchRules();
             }
@@ -163,13 +164,13 @@ export function useSSE() {
             const payload = data.payload as { conflictId: string; ruleAId: string; ruleBId: string } | undefined;
             if (payload?.conflictId) {
               incrementConflictCount();
-              addLog(`Conflict detected between rules`, 'warn');
+              addLog(`Conflict detected between rules`, LogType.WARN);
             }
             break;
           }
 
           case 'watchtower_scan_started': {
-            addLog('Watchtower scan started', 'info');
+            addLog('Watchtower scan started', LogType.INFO);
             break;
           }
 
@@ -182,7 +183,7 @@ export function useSSE() {
             if (payload) {
               addLog(
                 `Watchtower: ${payload.totalChecked} checked, ${payload.changesDetected} changes, ${payload.relevantChanges} relevant`,
-                'info'
+                LogType.INFO
               );
             }
             break;
@@ -196,7 +197,7 @@ export function useSSE() {
             if (payload) {
               addLog(
                 `Watchtower: Change detected in ${payload.jurisdictionId}${payload.description ? `: ${payload.description}` : ''}`,
-                'warn'
+                LogType.WARN
               );
             }
             break;

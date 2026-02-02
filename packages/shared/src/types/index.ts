@@ -19,24 +19,24 @@ export enum DeadlinePriority {
 }
 
 export enum JobStatus {
-  PENDING = 'pending',
-  PROCESSING = 'processing',
-  VERIFYING = 'verifying',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  FLAGGED = 'flagged',
-  DELTA_DETECTED = 'delta_detected',
-  ANALYZING_DNA = 'analyzing_dna',
-  RESOLVING_CONFLICTS = 'resolving_conflicts',
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  VERIFYING = 'VERIFYING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  FLAGGED = 'FLAGGED',
+  DELTA_DETECTED = 'DELTA_DETECTED',
+  ANALYZING_DNA = 'ANALYZING_DNA',
+  RESOLVING_CONFLICTS = 'RESOLVING_CONFLICTS',
 }
 
 export enum JurisdictionStatus {
-  IDLE = 'idle',
-  SEARCHING = 'searching',
-  HARVESTING = 'harvesting',
-  SYNCED = 'synced',
-  FAILED = 'failed',
-  UPDATING = 'updating',
+  IDLE = 'IDLE',
+  SEARCHING = 'SEARCHING',
+  HARVESTING = 'HARVESTING',
+  SYNCED = 'SYNCED',
+  FAILED = 'FAILED',
+  UPDATING = 'UPDATING',
 }
 
 export enum SyncFrequency {
@@ -61,9 +61,9 @@ export interface ScraperConfig {
 }
 
 export enum JurisdictionType {
-  FEDERAL_CIRCUIT = 'federal_circuit',
-  FEDERAL_DISTRICT = 'federal_district',
-  STATE = 'state',
+  FEDERAL_CIRCUIT = 'FEDERAL_CIRCUIT',
+  FEDERAL_DISTRICT = 'FEDERAL_DISTRICT',
+  STATE = 'STATE',
 }
 
 export enum AgentStatus {
@@ -73,9 +73,26 @@ export enum AgentStatus {
 }
 
 export enum ConflictStatus {
-  UNRESOLVED = 'unresolved',
-  RESOLVED = 'resolved',
-  MANUAL_OVERRIDE = 'manual_override',
+  UNRESOLVED = 'UNRESOLVED',
+  RESOLVED = 'RESOLVED',
+  MANUAL_OVERRIDE = 'MANUAL_OVERRIDE',
+}
+
+// Log types for system logs
+export enum LogType {
+  INFO = 'INFO',
+  WARN = 'WARN',
+  SUCCESS = 'SUCCESS',
+  AI = 'AI',
+  ERROR = 'ERROR',
+}
+
+// Discovery candidate status
+export enum DiscoveryStatus {
+  DISCOVERED = 'DISCOVERED',
+  PROCESSING = 'PROCESSING',
+  ACQUIRED = 'ACQUIRED',
+  REJECTED = 'REJECTED',
 }
 
 // Deadline interface
@@ -178,7 +195,7 @@ export interface DiscoveryCandidate {
   snippet: string;
   sourceUrl: string;
   relevanceScore: number;
-  status: 'discovered' | 'processing' | 'acquired' | 'rejected';
+  status: DiscoveryStatus;
 }
 
 // Extraction job tracking
@@ -226,7 +243,7 @@ export interface AIAgent {
 export interface SystemLog {
   id: string;
   message: string;
-  type: 'info' | 'warn' | 'success' | 'ai' | 'error';
+  type: LogType;
   timestamp: Date;
   metadata?: Record<string, unknown>;
 }

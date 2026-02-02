@@ -7,7 +7,7 @@ import { Select } from '../ui/Select';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
-import { JURISDICTION_STATUS_CONFIG, TRIGGER_TYPE_LABELS } from '@rulesharvester/shared';
+import { JURISDICTION_STATUS_CONFIG, TRIGGER_TYPE_LABELS, JurisdictionStatus } from '@rulesharvester/shared';
 import type { JurisdictionDNA, RuleTemplate, ScraperConfig } from '@rulesharvester/shared';
 import { api } from '../../api/client';
 import { toast } from '../ui/Toast';
@@ -43,7 +43,7 @@ export function JurisdictionDetail() {
 
   const jurisdictionRules = rules.filter((r) => r.jurisdictionId === selectedJurisdiction.id);
   const dna = selectedJurisdiction.dna as JurisdictionDNA | undefined;
-  const statusConfig = JURISDICTION_STATUS_CONFIG[selectedJurisdiction.status as keyof typeof JURISDICTION_STATUS_CONFIG];
+  const statusConfig = JURISDICTION_STATUS_CONFIG[selectedJurisdiction.status];
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -54,9 +54,9 @@ export function JurisdictionDetail() {
             <Badge variant="info">{selectedJurisdiction.code}</Badge>
             <Badge
               variant={
-                selectedJurisdiction.status === 'synced'
+                selectedJurisdiction.status === JurisdictionStatus.SYNCED
                   ? 'success'
-                  : selectedJurisdiction.status === 'failed'
+                  : selectedJurisdiction.status === JurisdictionStatus.FAILED
                   ? 'error'
                   : 'warning'
               }

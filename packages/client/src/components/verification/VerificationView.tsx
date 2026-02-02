@@ -7,7 +7,7 @@ import { Badge } from '../ui/Badge';
 import { Spinner } from '../ui/Spinner';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
-import { TRIGGER_TYPE_LABELS, PRIORITY_COLORS } from '@rulesharvester/shared';
+import { TRIGGER_TYPE_LABELS, PRIORITY_COLORS, LogType } from '@rulesharvester/shared';
 import { DeadlinePriority } from '@rulesharvester/shared';
 import type { Deadline, TriggerType } from '@rulesharvester/shared';
 
@@ -58,9 +58,9 @@ export function VerificationView() {
         relatedRules: editedRule.relatedRules,
         rawText: editedRule.rawText,
       });
-      addLog('Rule updated successfully', 'success');
+      addLog('Rule updated successfully', LogType.SUCCESS);
     } catch {
-      addLog('Failed to update rule', 'error');
+      addLog('Failed to update rule', LogType.ERROR);
     }
   };
 
@@ -169,10 +169,14 @@ export function VerificationView() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border" role="tablist" aria-label="Rule verification tabs">
         {(['details', 'deadlines', 'debate', 'raw'] as const).map((tab) => (
           <button
             key={tab}
+            role="tab"
+            id={`tab-${tab}`}
+            aria-selected={activeTab === tab}
+            aria-controls={`tabpanel-${tab}`}
             onClick={() => setTabActive(tab)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${
               activeTab === tab
@@ -187,7 +191,7 @@ export function VerificationView() {
 
       {/* Tab Content */}
       {activeTab === 'details' && editedRule && (
-        <div className="grid grid-cols-2 gap-6">
+        <div role="tabpanel" id="tabpanel-details" aria-labelledby="tab-details" className="grid grid-cols-2 gap-6">
           <Card>
             <CardHeader>Basic Information</CardHeader>
             <CardContent className="space-y-4">
@@ -235,7 +239,7 @@ export function VerificationView() {
       )}
 
       {activeTab === 'deadlines' && editedRule && (
-        <div className="space-y-6">
+        <div role="tabpanel" id="tabpanel-deadlines" aria-labelledby="tab-deadlines" className="space-y-6">
           {/* Existing Deadlines */}
           <Card>
             <CardHeader>Deadlines ({(editedRule.deadlines as Deadline[]).length})</CardHeader>
@@ -321,7 +325,7 @@ export function VerificationView() {
       )}
 
       {activeTab === 'debate' && swarmDebate && (
-        <div className="space-y-6">
+        <div role="tabpanel" id="tabpanel-debate" aria-labelledby="tab-debate" className="space-y-6">
           <Card>
             <CardHeader>Debate Summary</CardHeader>
             <CardContent>
@@ -351,16 +355,18 @@ export function VerificationView() {
       )}
 
       {activeTab === 'raw' && (
-        <Card>
-          <CardHeader>Raw Rule Text</CardHeader>
-          <CardContent>
-            <Textarea
-              value={editedRule?.rawText || ''}
-              onChange={(e) => setEditedRule(editedRule ? { ...editedRule, rawText: e.target.value } : null)}
-              className="min-h-[400px] font-mono text-sm"
-            />
-          </CardContent>
-        </Card>
+        <div role="tabpanel" id="tabpanel-raw" aria-labelledby="tab-raw">
+          <Card>
+            <CardHeader>Raw Rule Text</CardHeader>
+            <CardContent>
+              <Textarea
+                value={editedRule?.rawText || ''}
+                onChange={(e) => setEditedRule(editedRule ? { ...editedRule, rawText: e.target.value } : null)}
+                className="min-h-[400px] font-mono text-sm"
+              />
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

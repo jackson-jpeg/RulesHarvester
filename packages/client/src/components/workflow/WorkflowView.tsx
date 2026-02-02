@@ -7,7 +7,7 @@ import { ProgressBar } from '../ui/ProgressBar';
 import { Spinner } from '../ui/Spinner';
 import { useJobsStore } from '../../store/jobsStore';
 import { useUIStore } from '../../store/uiStore';
-import { JOB_STATUS_CONFIG } from '@rulesharvester/shared';
+import { JOB_STATUS_CONFIG, JobStatus } from '@rulesharvester/shared';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'failed';
 type SortBy = 'newest' | 'oldest' | 'progress';
@@ -23,9 +23,9 @@ export function WorkflowView() {
     fetchJobs();
   }, [fetchJobs]);
 
-  const activeJobs = jobs.filter((j) => j.status === 'pending' || j.status === 'processing');
-  const completedJobs = jobs.filter((j) => j.status === 'completed');
-  const failedJobs = jobs.filter((j) => j.status === 'failed');
+  const activeJobs = jobs.filter((j) => j.status === JobStatus.PENDING || j.status === JobStatus.PROCESSING);
+  const completedJobs = jobs.filter((j) => j.status === JobStatus.COMPLETED);
+  const failedJobs = jobs.filter((j) => j.status === JobStatus.FAILED);
 
   // Filter jobs
   const filteredJobs = useCallback(() => {
@@ -34,13 +34,13 @@ export function WorkflowView() {
     // Apply status filter
     switch (statusFilter) {
       case 'active':
-        filtered = filtered.filter((j) => j.status === 'pending' || j.status === 'processing');
+        filtered = filtered.filter((j) => j.status === JobStatus.PENDING || j.status === JobStatus.PROCESSING);
         break;
       case 'completed':
-        filtered = filtered.filter((j) => j.status === 'completed');
+        filtered = filtered.filter((j) => j.status === JobStatus.COMPLETED);
         break;
       case 'failed':
-        filtered = filtered.filter((j) => j.status === 'failed');
+        filtered = filtered.filter((j) => j.status === JobStatus.FAILED);
         break;
     }
 
@@ -192,11 +192,11 @@ export function WorkflowView() {
                   <div className="flex items-center gap-4">
                     <Badge
                       variant={
-                        job.status === 'completed'
+                        job.status === JobStatus.COMPLETED
                           ? 'success'
-                          : job.status === 'failed'
+                          : job.status === JobStatus.FAILED
                           ? 'error'
-                          : job.status === 'processing'
+                          : job.status === JobStatus.PROCESSING
                           ? 'warning'
                           : 'info'
                       }
@@ -211,25 +211,25 @@ export function WorkflowView() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {job.status === 'processing' && (
+                    {job.status === JobStatus.PROCESSING && (
                       <div className="w-32">
                         <ProgressBar value={job.progress} size="sm" />
                       </div>
                     )}
                     <Badge
                       variant={
-                        job.status === 'completed'
+                        job.status === JobStatus.COMPLETED
                           ? 'success'
-                          : job.status === 'failed'
+                          : job.status === JobStatus.FAILED
                           ? 'error'
-                          : job.status === 'processing'
+                          : job.status === JobStatus.PROCESSING
                           ? 'warning'
                           : 'default'
                       }
                     >
-                      {JOB_STATUS_CONFIG[job.status as keyof typeof JOB_STATUS_CONFIG]?.label || job.status}
+                      {JOB_STATUS_CONFIG[job.status]?.label || job.status}
                     </Badge>
-                    {job.status === 'failed' && (
+                    {job.status === JobStatus.FAILED && (
                       <Button variant="ghost" size="sm" onClick={() => retryJob(job.id)}>
                         Retry
                       </Button>

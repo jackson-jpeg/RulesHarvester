@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as cheerio from 'cheerio';
 import { prisma } from '../../index.js';
 import type { ScraperConfig } from '@rulesharvester/shared';
+import { ScraperDiscoveryResponseSchema } from '@rulesharvester/shared';
 import { GENERIC_CONFIG } from './courtSites.js';
 
 const anthropic = new Anthropic();
@@ -92,21 +93,27 @@ async function discoverSelectorsWithClaude(
     throw new Error('Claude did not return selector configuration');
   }
 
-  const input = toolUse.input as Record<string, unknown>;
+  // Validate Claude's response with Zod schema
+  const parseResult = ScraperDiscoveryResponseSchema.safeParse(toolUse.input);
+  if (!parseResult.success) {
+    throw new Error(`Invalid scraper discovery response: ${parseResult.error.message}`);
+  }
+
+  const input = parseResult.data;
 
   return {
     name: jurisdictionName,
     baseUrl: new URL(url).origin,
-    ruleListSelector: input.ruleListSelector as string,
-    ruleLinkSelector: input.ruleLinkSelector as string,
-    ruleContentSelector: input.ruleContentSelector as string,
-    ruleCodeSelector: input.ruleCodeSelector as string | undefined,
-    ruleTitleSelector: input.ruleTitleSelector as string | undefined,
-    paginationSelector: input.paginationSelector as string | undefined,
+    ruleListSelector: input.ruleListSelector,
+    ruleLinkSelector: input.ruleLinkSelector,
+    ruleContentSelector: input.ruleContentSelector,
+    ruleCodeSelector: input.ruleCodeSelector,
+    ruleTitleSelector: input.ruleTitleSelector,
+    paginationSelector: input.paginationSelector,
     rateLimitMs: 2000,
     discoveredAt: new Date().toISOString(),
-    confidence: input.confidence as number,
-    discoveryReasoning: input.reasoning as string,
+    confidence: input.confidence,
+    discoveryReasoning: input.reasoning,
   };
 }
 

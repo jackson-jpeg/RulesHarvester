@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../index.js';
+import { WatchtowerHashMetadataSchema, CLAUDE_MODEL_FAST } from '@rulesharvester/shared';
 
 const anthropic = new Anthropic();
 
@@ -24,6 +25,10 @@ interface WatchtowerCheckResult {
  * 5. Only trigger full scrape if relevant
  */
 class WatchtowerService {
+  // Concurrent execution protection
+  private isRunning = false;
+  private runStartedAt: Date | null = null;
+  private readonly MAX_RUN_DURATION_MS = 30 * 60 * 1000; // 30 minutes auto-release
   /**
    * Check a single jurisdiction for updates
    */
@@ -168,7 +173,7 @@ class WatchtowerService {
 
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-haiku-3-5-20241022',
+        model: CLAUDE_MODEL_FAST,
         max_tokens: 256,
         messages: [{
           role: 'user',
@@ -225,9 +230,13 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
     });
 
     if (log?.metadata) {
-      const meta = log.metadata as { url?: string; hash?: string };
-      if (meta.url === url) {
-        return meta.hash || null;
+      // Validate metadata with Zod schema
+      const parseResult = WatchtowerHashMetadataSchema.safeParse(log.metadata);
+      if (parseResult.success) {
+        const meta = parseResult.data;
+        if (meta.url === url) {
+          return meta.hash || null;
+        }
       }
     }
 
@@ -261,79 +270,102 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
    * @param frequency Optional filter by sync frequency (DAILY, WEEKLY)
    */
   async runScheduledChecks(frequency?: 'DAILY' | 'WEEKLY'): Promise<WatchtowerCheckResult[]> {
-    const whereClause: {
-      autoSyncEnabled: boolean;
-      courtWebsite: { not: null };
-      syncFrequency?: string;
-    } = {
-      autoSyncEnabled: true,
-      courtWebsite: { not: null },
-    };
-
-    if (frequency) {
-      whereClause.syncFrequency = frequency;
-    }
-
-    const jurisdictions = await prisma.jurisdiction.findMany({
-      where: whereClause,
-      select: { id: true, name: true },
-    });
-
-    if (jurisdictions.length === 0) {
-      return [];
-    }
-
-    console.log(`Watchtower: Starting ${frequency || 'all'} scan for ${jurisdictions.length} jurisdictions`);
-
-    const results: WatchtowerCheckResult[] = [];
-
-    for (const jurisdiction of jurisdictions) {
-      try {
-        // Add random jitter (0-60s) to stagger checks and avoid overwhelming servers
-        const jitter = Math.floor(Math.random() * 60000);
-        await new Promise(resolve => setTimeout(resolve, jitter));
-
-        const result = await this.checkForUpdates(jurisdiction.id);
-        results.push(result);
-
-        // Rate limit between checks
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.error(`Watchtower: Failed to check ${jurisdiction.id}:`, error);
-        // Log failure but don't mark jurisdiction as FAILED
-        await prisma.systemLog.create({
-          data: {
-            type: 'WARN',
-            message: `Watchtower check failed for ${jurisdiction.name}`,
-            metadata: {
-              jurisdictionId: jurisdiction.id,
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: new Date().toISOString(),
-            },
-          },
-        });
+    // Concurrent execution protection
+    if (this.isRunning) {
+      // Check if we should auto-release (stale run)
+      if (this.runStartedAt && Date.now() - this.runStartedAt.getTime() > this.MAX_RUN_DURATION_MS) {
+        console.log('Watchtower: Auto-releasing stale lock from previous run');
+        this.isRunning = false;
+        this.runStartedAt = null;
+      } else {
+        console.log('Watchtower: Skipping scan - another scan is already in progress');
+        return [];
       }
     }
 
-    // Log summary
-    const changesDetected = results.filter(r => r.hasChanges).length;
-    const relevantChanges = results.filter(r => r.relevantUpdate).length;
+    // Acquire lock
+    this.isRunning = true;
+    this.runStartedAt = new Date();
 
-    await prisma.systemLog.create({
-      data: {
-        type: 'INFO',
-        message: `Watchtower scan complete: ${results.length} checked, ${changesDetected} changes, ${relevantChanges} relevant`,
-        metadata: {
-          totalChecked: results.length,
-          changesDetected,
-          relevantChanges,
-          frequency: frequency || 'manual',
-          timestamp: new Date().toISOString(),
+    try {
+      const whereClause: {
+        autoSyncEnabled: boolean;
+        courtWebsite: { not: null };
+        syncFrequency?: string;
+      } = {
+        autoSyncEnabled: true,
+        courtWebsite: { not: null },
+      };
+
+      if (frequency) {
+        whereClause.syncFrequency = frequency;
+      }
+
+      const jurisdictions = await prisma.jurisdiction.findMany({
+        where: whereClause,
+        select: { id: true, name: true },
+      });
+
+      if (jurisdictions.length === 0) {
+        return [];
+      }
+
+      console.log(`Watchtower: Starting ${frequency || 'all'} scan for ${jurisdictions.length} jurisdictions`);
+
+      const results: WatchtowerCheckResult[] = [];
+
+      for (const jurisdiction of jurisdictions) {
+        try {
+          // Add random jitter (0-60s) to stagger checks and avoid overwhelming servers
+          const jitter = Math.floor(Math.random() * 60000);
+          await new Promise(resolve => setTimeout(resolve, jitter));
+
+          const result = await this.checkForUpdates(jurisdiction.id);
+          results.push(result);
+
+          // Rate limit between checks
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error) {
+          console.error(`Watchtower: Failed to check ${jurisdiction.id}:`, error);
+          // Log failure but don't mark jurisdiction as FAILED
+          await prisma.systemLog.create({
+            data: {
+              type: 'WARN',
+              message: `Watchtower check failed for ${jurisdiction.name}`,
+              metadata: {
+                jurisdictionId: jurisdiction.id,
+                error: error instanceof Error ? error.message : String(error),
+                timestamp: new Date().toISOString(),
+              },
+            },
+          });
+        }
+      }
+
+      // Log summary
+      const changesDetected = results.filter(r => r.hasChanges).length;
+      const relevantChanges = results.filter(r => r.relevantUpdate).length;
+
+      await prisma.systemLog.create({
+        data: {
+          type: 'INFO',
+          message: `Watchtower scan complete: ${results.length} checked, ${changesDetected} changes, ${relevantChanges} relevant`,
+          metadata: {
+            totalChecked: results.length,
+            changesDetected,
+            relevantChanges,
+            frequency: frequency || 'manual',
+            timestamp: new Date().toISOString(),
+          },
         },
-      },
-    });
+      });
 
-    return results;
+      return results;
+    } finally {
+      // Release lock
+      this.isRunning = false;
+      this.runStartedAt = null;
+    }
   }
 
   /**

@@ -7,6 +7,7 @@ import { useRulesStore } from '../../store/rulesStore';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useUIStore } from '../../store/uiStore';
 import { toast } from '../ui/Toast';
+import { LogType } from '@rulesharvester/shared';
 
 type ExportFormat = 'json' | 'csv' | 'yaml';
 
@@ -126,11 +127,11 @@ export function ExportView() {
       document.body.removeChild(a);
       URL.revokeObjectURL(downloadUrl);
 
-      addLog(`Export downloaded: ${exportFormat.toUpperCase()}`, 'success');
+      addLog(`Export downloaded: ${exportFormat.toUpperCase()}`, LogType.SUCCESS);
       toast.success(`Downloaded ${exportFormat.toUpperCase()} file`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Export failed';
-      addLog(`Export failed: ${message}`, 'error');
+      addLog(`Export failed: ${message}`, LogType.ERROR);
       toast.error(message);
     } finally {
       setIsExporting(false);
@@ -142,10 +143,10 @@ export function ExportView() {
 
     try {
       await navigator.clipboard.writeText(previewData);
-      addLog('Export data copied to clipboard', 'success');
+      addLog('Export data copied to clipboard', LogType.SUCCESS);
       toast.success('Copied to clipboard');
     } catch {
-      addLog('Failed to copy to clipboard', 'error');
+      addLog('Failed to copy to clipboard', LogType.ERROR);
       toast.error('Failed to copy');
     }
   };

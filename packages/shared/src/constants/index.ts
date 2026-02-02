@@ -40,27 +40,27 @@ export const PRIORITY_COLORS = {
   FATAL: { bg: 'bg-rose-500', text: 'text-rose-500', border: 'border-rose-500' },
 };
 
-// Job status display config
+// Job status display config (keys match JobStatus enum)
 export const JOB_STATUS_CONFIG = {
-  pending: { label: 'Pending', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
-  processing: { label: 'Processing', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-  verifying: { label: 'Verifying', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
-  completed: { label: 'Completed', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
-  failed: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
-  flagged: { label: 'Flagged', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
-  delta_detected: { label: 'Delta Detected', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
-  analyzing_dna: { label: 'Analyzing DNA', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
-  resolving_conflicts: { label: 'Resolving Conflicts', color: 'text-pink-400', bgColor: 'bg-pink-500/20' },
+  PENDING: { label: 'Pending', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
+  PROCESSING: { label: 'Processing', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
+  VERIFYING: { label: 'Verifying', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
+  COMPLETED: { label: 'Completed', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
+  FAILED: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
+  FLAGGED: { label: 'Flagged', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
+  DELTA_DETECTED: { label: 'Delta Detected', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
+  ANALYZING_DNA: { label: 'Analyzing DNA', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
+  RESOLVING_CONFLICTS: { label: 'Resolving Conflicts', color: 'text-pink-400', bgColor: 'bg-pink-500/20' },
 };
 
-// Jurisdiction status display config
+// Jurisdiction status display config (keys match JurisdictionStatus enum)
 export const JURISDICTION_STATUS_CONFIG = {
-  idle: { label: 'Idle', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
-  searching: { label: 'Searching', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-  harvesting: { label: 'Harvesting', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
-  synced: { label: 'Synced', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
-  failed: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
-  updating: { label: 'Updating', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
+  IDLE: { label: 'Idle', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
+  SEARCHING: { label: 'Searching', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
+  HARVESTING: { label: 'Harvesting', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
+  SYNCED: { label: 'Synced', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
+  FAILED: { label: 'Failed', color: 'text-rose-400', bgColor: 'bg-rose-500/20' },
+  UPDATING: { label: 'Updating', color: 'text-cyan-400', bgColor: 'bg-cyan-500/20' },
 };
 
 // API endpoints
@@ -94,6 +94,13 @@ export const API_ENDPOINTS = {
 
   // Stats
   STATS: '/api/stats',
+
+  // Watchtower
+  WATCHTOWER_STATUS: '/api/watchtower/status',
+  WATCHTOWER_SCAN: '/api/watchtower/scan',
+
+  // SSE Events
+  EVENTS: '/api/events',
 };
 
 // Default pagination
@@ -106,4 +113,5 @@ export const MAX_CONCURRENT_JOBS = 5;
 
 // Claude model configuration
 export const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+export const CLAUDE_MODEL_FAST = 'claude-haiku-3-5-20241022';
 export const CLAUDE_MAX_TOKENS = 4096;

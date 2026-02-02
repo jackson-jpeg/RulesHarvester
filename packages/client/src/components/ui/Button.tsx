@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -10,6 +10,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   children: ReactNode;
+  /** Debounce time in ms to prevent double-clicks (default: 300ms, 0 to disable) */
+  debounceMs?: number;
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
@@ -29,19 +31,59 @@ const sizeStyles: Record<ButtonSize, string> = {
   lg: 'px-6 py-3 text-base',
 };
 
-export function Button({
-  variant = 'primary',
-  size = 'md',
-  isLoading = false,
-  leftIcon,
-  rightIcon,
-  children,
-  className = '',
-  disabled,
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = 'primary',
+    size = 'md',
+    isLoading = false,
+    leftIcon,
+    rightIcon,
+    children,
+    className = '',
+    disabled,
+    debounceMs = 300,
+    onClick,
+    ...props
+  },
+  ref
+) {
+  const [isDebouncing, setIsDebouncing] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      // If debounce is disabled or already debouncing, handle accordingly
+      if (debounceMs === 0) {
+        onClick?.(e);
+        return;
+      }
+
+      if (isDebouncing) {
+        return;
+      }
+
+      setIsDebouncing(true);
+      onClick?.(e);
+
+      timeoutRef.current = setTimeout(() => {
+        setIsDebouncing(false);
+      }, debounceMs);
+    },
+    [onClick, debounceMs, isDebouncing]
+  );
+
   return (
     <button
+      ref={ref}
       className={`
         inline-flex items-center justify-center gap-2
         rounded-lg font-medium
@@ -52,7 +94,8 @@ export function Button({
         ${sizeStyles[size]}
         ${className}
       `}
-      disabled={disabled || isLoading}
+      disabled={disabled || isLoading || isDebouncing}
+      onClick={handleClick}
       {...props}
     >
       {isLoading ? (
@@ -64,4 +107,4 @@ export function Button({
       {rightIcon}
     </button>
   );
-}
+});

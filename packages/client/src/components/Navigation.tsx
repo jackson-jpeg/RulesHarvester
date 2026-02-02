@@ -3,6 +3,7 @@ import { useJobsStore } from '../store/jobsStore';
 import { useRulesStore } from '../store/rulesStore';
 import { useEffect } from 'react';
 import { api } from '../api/client';
+import { JobStatus } from '@rulesharvester/shared';
 
 type TabId =
   | 'dashboard'
@@ -52,7 +53,7 @@ export function Navigation() {
     fetchConflictCount();
   }, [setConflictCount]);
 
-  const activeJobCount = jobs.filter(j => j.status === 'processing' || j.status === 'pending').length;
+  const activeJobCount = jobs.filter(j => j.status === JobStatus.PROCESSING || j.status === JobStatus.PENDING).length;
 
   // Badge counts for each nav item
   const getBadgeCount = (id: TabId): number | null => {

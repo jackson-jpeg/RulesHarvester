@@ -15,6 +15,7 @@ import { conflictsRouter } from './routes/conflicts.js';
 import { bulkRouter } from './routes/bulk.js';
 import { exportRouter } from './routes/export.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
 import { sseManager } from './services/sse/sseManager.js';
 import { watchtowerService } from './services/watchtower/watchtowerService.js';
 
@@ -50,6 +51,9 @@ app.use(cors({
 
 console.log(`CORS allowed origins: ${allowedOrigins.join(', ')}`);
 app.use(express.json({ limit: '10mb' }));
+
+// Request ID middleware for tracking
+app.use(requestIdMiddleware);
 
 // Rate limiting - General: 100 requests per 15 minutes
 const generalLimiter = rateLimit({

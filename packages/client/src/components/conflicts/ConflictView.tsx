@@ -7,7 +7,7 @@ import { api } from '../../api/client';
 import { useUIStore } from '../../store/uiStore';
 import { toast } from '../ui/Toast';
 import type { RuleConflict } from '@rulesharvester/shared';
-import { ConflictStatus } from '@rulesharvester/shared';
+import { ConflictStatus, LogType } from '@rulesharvester/shared';
 
 type FilterType = 'all' | 'unresolved' | 'resolved';
 
@@ -28,7 +28,7 @@ export function ConflictView() {
       const response = await api.get<{ items: RuleConflict[] }>('/conflicts');
       setConflicts(response.items || []);
     } catch (error) {
-      addLog('Failed to fetch conflicts', 'error');
+      addLog('Failed to fetch conflicts', LogType.ERROR);
       toast.error('Failed to load conflicts');
       setConflicts([]);
     } finally {
@@ -47,10 +47,10 @@ export function ConflictView() {
             : c
         )
       );
-      addLog(`Conflict ${resolution === 'accept' ? 'accepted' : 'overridden'}`, 'success');
+      addLog(`Conflict ${resolution === 'accept' ? 'accepted' : 'overridden'}`, LogType.SUCCESS);
       toast.success(`Conflict ${resolution === 'accept' ? 'resolved' : 'overridden'}`);
     } catch (error) {
-      addLog('Failed to resolve conflict', 'error');
+      addLog('Failed to resolve conflict', LogType.ERROR);
       toast.error('Failed to resolve conflict');
     }
   };
