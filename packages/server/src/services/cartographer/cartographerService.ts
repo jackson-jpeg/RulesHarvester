@@ -165,59 +165,86 @@ class CartographerService {
    */
   async searchForCourtWebsites(query: string): Promise<CartographerSearchResult[]> {
     try {
+      console.log(`Cartographer: Searching for "${query}"...`);
+
       const response = await anthropic.messages.create({
         model: CLAUDE_MODEL_FAST,
-        max_tokens: 2048,
+        max_tokens: 4096,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [
           {
             role: 'user',
             content: `Search for: ${query}
 
-Please search for official court websites. I need to find:
-- Official court websites (.gov or .us domains preferred)
-- Pages with local rules, rules of procedure, or court rules
-- Avoid legal aggregators like Westlaw, Findlaw, Justia, LexisNexis, or Casetext
+Find official court websites with local rules. For each result found, list:
+1. The exact URL
+2. The court name
+3. A brief description
 
-Return the search results.`,
+Focus on .gov and .us domains. Exclude legal aggregators like Westlaw, Findlaw, Justia.`,
           },
         ],
       });
+
+      console.log('Cartographer: Response blocks:', response.content.map(b => b.type));
 
       // Extract search results from the response
       const results: CartographerSearchResult[] = [];
 
       for (const block of response.content) {
-        if (block.type === 'tool_use' && block.name === 'web_search') {
-          // The web search tool returns results in a structured format
-          const searchResults = block.input as SearchWebResult;
-          if (searchResults?.results) {
-            for (const result of searchResults.results) {
-              // Filter out excluded domains
-              if (!this.isExcludedDomain(result.url)) {
-                results.push({
-                  url: result.url,
-                  title: result.title || '',
-                  snippet: result.snippet || '',
-                  domain: new URL(result.url).hostname,
-                });
+        // Cast to string for comparison since TypeScript SDK types may not include web_search_tool_result
+        const blockType = (block as { type: string }).type;
+        console.log(`Cartographer: Processing block type: ${blockType}`);
+
+        // Check for web search result blocks (server tool results)
+        if (blockType === 'web_search_tool_result') {
+          // Handle the web search result format
+          const searchBlock = block as unknown as {
+            type: 'web_search_tool_result';
+            content: Array<{
+              type: string;
+              url?: string;
+              title?: string;
+              encrypted_content?: string;
+            }>;
+          };
+          console.log(`Cartographer: web_search_tool_result has ${searchBlock.content?.length || 0} items`);
+          if (searchBlock.content) {
+            for (const item of searchBlock.content) {
+              console.log(`Cartographer: Search result item type: ${item.type}, url: ${item.url}`);
+              if (item.type === 'web_search_result' && item.url) {
+                const isExcluded = this.isExcludedDomain(item.url);
+                console.log(`Cartographer: URL ${item.url} excluded: ${isExcluded}`);
+                if (!isExcluded) {
+                  console.log(`Cartographer: Adding search result: ${item.url}`);
+                  results.push({
+                    url: item.url,
+                    title: item.title || '',
+                    snippet: '',
+                    domain: new URL(item.url).hostname,
+                  });
+                }
               }
             }
           }
         }
 
-        // Also check for text blocks that might contain parsed results
-        if (block.type === 'text') {
-          // Parse URLs from text response if needed
-          const urlMatches = block.text.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/g);
+        // Parse URLs from text response
+        if (blockType === 'text') {
+          const textBlock = block as { type: 'text'; text: string };
+          console.log('Cartographer: Text response length:', textBlock.text.length);
+
+          // Parse URLs from text response
+          const urlMatches = textBlock.text.match(/https?:\/\/[^\s<>"{}|\\^`[\]()]+/g);
           if (urlMatches) {
+            console.log(`Cartographer: Found ${urlMatches.length} URLs in text`);
             for (const url of urlMatches) {
               try {
                 const cleanUrl = url.replace(/[.,;:!?)]+$/, ''); // Clean trailing punctuation
-                if (
-                  !this.isExcludedDomain(cleanUrl) &&
-                  this.isValidCourtDomain(cleanUrl)
-                ) {
+                const isExcluded = this.isExcludedDomain(cleanUrl);
+                const isValidCourt = this.isValidCourtDomain(cleanUrl);
+                console.log(`Cartographer: Text URL ${cleanUrl} - excluded: ${isExcluded}, validCourt: ${isValidCourt}`);
+                if (!isExcluded && isValidCourt) {
                   results.push({
                     url: cleanUrl,
                     title: '',
@@ -233,13 +260,18 @@ Return the search results.`,
         }
       }
 
+      console.log(`Cartographer: Total results before dedup: ${results.length}`);
+
       // Deduplicate by domain
       const seen = new Set<string>();
-      return results.filter((r) => {
+      const deduped = results.filter((r) => {
         if (seen.has(r.domain)) return false;
         seen.add(r.domain);
         return true;
       });
+
+      console.log(`Cartographer: Results after dedup: ${deduped.length}`);
+      return deduped;
     } catch (error) {
       console.error('Cartographer: Web search failed:', error);
       return [];
