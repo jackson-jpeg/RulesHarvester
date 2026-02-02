@@ -195,6 +195,50 @@ statsRouter.get(
   })
 );
 
+// Get funnel data for progress visualization
+statsRouter.get(
+  '/funnel',
+  asyncHandler(async (_req, res) => {
+    const [
+      discoveredSources,
+      totalJobs,
+      pendingJobs,
+      totalRules,
+      verifiedRules,
+      unresolvedConflicts,
+      resolvedConflicts,
+    ] = await Promise.all([
+      prisma.discoveryCandidate.count(),
+      prisma.extractionJob.count(),
+      prisma.extractionJob.count({
+        where: { status: { in: ['PENDING', 'PROCESSING'] } },
+      }),
+      prisma.rule.count(),
+      prisma.rule.count({
+        where: { confidenceScore: { gte: 80 } },
+      }),
+      prisma.ruleConflict.count({ where: { status: 'UNRESOLVED' } }),
+      prisma.ruleConflict.count({ where: { status: 'RESOLVED' } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        discoveredSources,
+        totalJobs,
+        pendingJobs,
+        completedJobs: totalJobs - pendingJobs,
+        totalRules,
+        verifiedRules,
+        unverifiedRules: totalRules - verifiedRules,
+        unresolvedConflicts,
+        resolvedConflicts,
+        totalConflicts: unresolvedConflicts + resolvedConflicts,
+      },
+    });
+  })
+);
+
 // Get system status
 statsRouter.get(
   '/system',
