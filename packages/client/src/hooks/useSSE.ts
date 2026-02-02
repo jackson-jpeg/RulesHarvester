@@ -11,11 +11,25 @@ const INITIAL_RECONNECT_DELAY = 5000; // 5 seconds
 const MAX_RECONNECT_DELAY = 60000; // 60 seconds
 const RECONNECT_MULTIPLIER = 2;
 
+// Event deduplication config
+const MAX_PROCESSED_EVENTS = 100;
+
+/**
+ * Generate a unique event key for deduplication
+ */
+function generateEventKey(data: { type: string; payload?: unknown; timestamp?: unknown }): string {
+  const payloadStr = data.payload ? JSON.stringify(data.payload) : '';
+  const timestamp = data.timestamp || '';
+  return `${data.type}:${payloadStr}:${timestamp}`;
+}
+
 export function useSSE() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
   const isUnmountedRef = useRef(false);
+  // Track processed event keys for deduplication
+  const processedEventsRef = useRef<Set<string>>(new Set());
 
   const { updateJobProgress, completeJob, failJob, fetchJobs } = useJobsStore();
   const { addRule, fetchRules } = useRulesStore();
@@ -92,6 +106,30 @@ export function useSSE() {
 
       try {
         const data = JSON.parse(event.data);
+
+        // Skip 'connected' events from deduplication check
+        if (data.type !== 'connected') {
+          // Generate event key for deduplication
+          const eventKey = generateEventKey(data);
+
+          // Check if we've already processed this event
+          if (processedEventsRef.current.has(eventKey)) {
+            return; // Skip duplicate event
+          }
+
+          // Track this event
+          processedEventsRef.current.add(eventKey);
+
+          // Limit the size of processed events set
+          if (processedEventsRef.current.size > MAX_PROCESSED_EVENTS) {
+            // Remove oldest entries (first entries in Set iteration order)
+            const entries = Array.from(processedEventsRef.current);
+            const toRemove = entries.slice(0, entries.length - MAX_PROCESSED_EVENTS);
+            for (const key of toRemove) {
+              processedEventsRef.current.delete(key);
+            }
+          }
+        }
 
         switch (data.type) {
           case 'connected':

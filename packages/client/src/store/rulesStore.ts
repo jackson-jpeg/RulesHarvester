@@ -126,12 +126,14 @@ export const useRulesStore = create<RulesState>((set, get) => ({
 
   setFilters: (filters) => {
     set({ filters, pagination: { ...get().pagination, page: 1 } });
-    get().fetchRules();
+    // Use queueMicrotask to ensure state is committed before fetching
+    queueMicrotask(() => get().fetchRules());
   },
 
   setPage: (page) => {
     set({ pagination: { ...get().pagination, page } });
-    get().fetchRules();
+    // Use queueMicrotask to ensure state is committed before fetching
+    queueMicrotask(() => get().fetchRules());
   },
 
   selectRule: (rule) => set({ selectedRule: rule }),

@@ -426,3 +426,40 @@ export interface CartographerStatus {
   pendingApproval: number;
   approvedToday: number;
 }
+
+// Export types
+export interface ExportMetadata {
+  exportVersion: string;
+  exportedAt: string;
+  format: 'json' | 'csv' | 'yaml';
+  jurisdiction_count: number;
+  node_count: number;
+  integrity_hash: string;
+  includeMetadata: boolean;
+  includeRaw: boolean;
+}
+
+export interface ExportedRule {
+  id: string;
+  ruleCode: string;
+  name: string;
+  jurisdictionId: string;
+  jurisdictionCode?: string;
+  triggerType: TriggerType;
+  deadlines: Deadline[];
+  relatedRules: string[];
+  confidenceScore: number;
+  complexity?: number;
+  sourceUrl?: string;
+  rawText?: string;
+  dna?: JurisdictionDNA;
+  riskProfile?: TacticalRiskProfile;
+  swarmDebate?: SwarmDebate;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportData {
+  system_metadata: ExportMetadata;
+  rules: ExportedRule[];
+}

@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import { validateBody } from '../middleware/validate.js';
 import { scraperService } from '../services/scraper/scraperService.js';
+import { BatchAcquireRequestSchema } from '@rulesharvester/shared';
 
 export const discoverRouter = Router();
 
@@ -256,6 +258,30 @@ discoverRouter.post(
   '/:id/acquire',
   asyncHandler(async (req, res) => {
     const id = req.params.id as string;
+
+    // Atomic update: only update if status is DISCOVERED (prevents TOCTOU race)
+    const updateResult = await prisma.discoveryCandidate.updateMany({
+      where: {
+        id,
+        status: 'DISCOVERED', // Only acquire if still in DISCOVERED state
+      },
+      data: { status: 'PROCESSING' },
+    });
+
+    // If no rows updated, either not found or already acquired
+    if (updateResult.count === 0) {
+      const candidate = await prisma.discoveryCandidate.findUnique({
+        where: { id },
+      });
+
+      if (!candidate) {
+        throw new NotFoundError('Discovery candidate');
+      }
+
+      throw new ValidationError(`Candidate already ${candidate.status.toLowerCase()}`);
+    }
+
+    // Fetch the updated candidate
     const candidate = await prisma.discoveryCandidate.findUnique({
       where: { id },
     });
@@ -263,16 +289,6 @@ discoverRouter.post(
     if (!candidate) {
       throw new NotFoundError('Discovery candidate');
     }
-
-    if (candidate.status === 'ACQUIRED') {
-      throw new ValidationError('Candidate already acquired');
-    }
-
-    // Update status to processing
-    await prisma.discoveryCandidate.update({
-      where: { id },
-      data: { status: 'PROCESSING' },
-    });
 
     // Create extraction job
     const jurisdiction = await prisma.jurisdiction.findUnique({
@@ -323,46 +339,49 @@ discoverRouter.post(
 // Batch acquire multiple candidates
 discoverRouter.post(
   '/batch/acquire',
+  validateBody(BatchAcquireRequestSchema),
   asyncHandler(async (req, res) => {
     const { candidateIds } = req.body;
 
-    if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
-      throw new ValidationError('candidateIds array is required');
-    }
+    // Atomic batch update: only update candidates in DISCOVERED state (prevents race)
+    const updateResult = await prisma.discoveryCandidate.updateMany({
+      where: {
+        id: { in: candidateIds },
+        status: 'DISCOVERED', // Only acquire if still in DISCOVERED state
+      },
+      data: { status: 'PROCESSING' },
+    });
 
-    // Fetch all candidates in a single query (fix N+1)
+    // Fetch all candidates to build results
     const candidates = await prisma.discoveryCandidate.findMany({
       where: { id: { in: candidateIds } },
+      select: { id: true, status: true },
     });
 
     // Build lookup map for quick access
     const candidateMap = new Map(candidates.map(c => [c.id, c]));
 
-    // Identify candidates to update
-    const toUpdate = candidates
-      .filter(c => c.status === 'DISCOVERED')
-      .map(c => c.id);
-
-    // Batch update in a transaction
-    if (toUpdate.length > 0) {
-      await prisma.discoveryCandidate.updateMany({
-        where: { id: { in: toUpdate } },
-        data: { status: 'PROCESSING' },
-      });
-    }
-
     // Build results based on original candidateIds order
-    const results = candidateIds.map(id => {
+    const results = candidateIds.map((id: string) => {
       const candidate = candidateMap.get(id);
       if (!candidate) {
         return { id, status: 'not_found' };
       }
-      if (candidate.status === 'DISCOVERED') {
+      // If status is PROCESSING, it was just updated (queued)
+      if (candidate.status === 'PROCESSING') {
         return { id, status: 'queued' };
       }
-      return { id, status: 'skipped' };
+      // Otherwise it was already in a different state
+      return { id, status: 'skipped', reason: candidate.status.toLowerCase() };
     });
 
-    res.json({ success: true, data: results });
+    res.json({
+      success: true,
+      data: {
+        results,
+        queued: updateResult.count,
+        total: candidateIds.length,
+      },
+    });
   })
 );

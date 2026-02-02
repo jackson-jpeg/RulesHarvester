@@ -18,6 +18,7 @@ import { WorkflowView } from './components/workflow/WorkflowView';
 import { WatchtowerView } from './components/watchtower/WatchtowerView';
 import { JurisdictionDiscoveryView } from './components/discovery/JurisdictionDiscoveryView';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { ViewErrorBoundary } from './components/ui/ViewErrorBoundary';
 import { ToastContainer } from './components/ui/Toast';
 
 function App() {
@@ -39,29 +40,29 @@ function App() {
   const renderView = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
+        return <ViewErrorBoundary viewName="Dashboard"><Dashboard /></ViewErrorBoundary>;
       case 'crawler':
-        return <CrawlerView />;
+        return <ViewErrorBoundary viewName="Crawler"><CrawlerView /></ViewErrorBoundary>;
       case 'library':
-        return <LibraryView />;
+        return <ViewErrorBoundary viewName="Library"><LibraryView /></ViewErrorBoundary>;
       case 'workflow':
-        return <WorkflowView />;
+        return <ViewErrorBoundary viewName="Workflow"><WorkflowView /></ViewErrorBoundary>;
       case 'conflicts':
-        return <ConflictView />;
+        return <ViewErrorBoundary viewName="Conflicts"><ConflictView /></ViewErrorBoundary>;
       case 'verify':
-        return <VerificationView />;
+        return <ViewErrorBoundary viewName="Verification"><VerificationView /></ViewErrorBoundary>;
       case 'export':
-        return <ExportView />;
+        return <ViewErrorBoundary viewName="Export"><ExportView /></ViewErrorBoundary>;
       case 'settings':
-        return <SettingsView />;
+        return <ViewErrorBoundary viewName="Settings"><SettingsView /></ViewErrorBoundary>;
       case 'jurisdiction-detail':
-        return <JurisdictionDetail />;
+        return <ViewErrorBoundary viewName="Jurisdiction Detail"><JurisdictionDetail /></ViewErrorBoundary>;
       case 'watchtower':
-        return <WatchtowerView />;
+        return <ViewErrorBoundary viewName="Watchtower"><WatchtowerView /></ViewErrorBoundary>;
       case 'discovery':
-        return <JurisdictionDiscoveryView />;
+        return <ViewErrorBoundary viewName="Jurisdiction Discovery"><JurisdictionDiscoveryView /></ViewErrorBoundary>;
       default:
-        return <Dashboard />;
+        return <ViewErrorBoundary viewName="Dashboard"><Dashboard /></ViewErrorBoundary>;
     }
   };
 

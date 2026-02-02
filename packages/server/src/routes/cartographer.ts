@@ -7,6 +7,8 @@ import {
   PaginationQuerySchema,
 } from '@rulesharvester/shared';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { sseManager } from '../services/sse/sseManager.js';
+import { prisma } from '../index.js';
 
 export const cartographerRouter = Router();
 
@@ -26,8 +28,23 @@ cartographerRouter.post('/discover', async (req, res) => {
     // Run discovery in background
     cartographerService
       .discoverJurisdictions({ jurisdictionTypes, maxResults, customQueries })
-      .catch((error) => {
+      .catch(async (error) => {
         console.error('Cartographer: Background discovery failed:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        // Send SSE notification for discovery failure
+        sseManager.sendCartographerDiscoveryFailed(errorMessage);
+        // Log the error to SystemLog for audit trail
+        try {
+          await prisma.systemLog.create({
+            data: {
+              message: `Cartographer discovery failed: ${errorMessage}`,
+              type: 'ERROR',
+              metadata: { jurisdictionTypes, maxResults, error: String(error) },
+            },
+          });
+        } catch (logError) {
+          console.error('Failed to log cartographer error:', logError);
+        }
       });
 
     return sendSuccess(res, { message: 'Discovery started' });

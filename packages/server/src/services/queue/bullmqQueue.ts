@@ -90,6 +90,15 @@ async function processExtractionJob(data: ExtractionJobData) {
   try {
     console.log(`Processing extraction job ${jobId} for ${jurisdictionCode}`);
 
+    // Log job started
+    await prisma.systemLog.create({
+      data: {
+        message: `Extraction job started for ${jurisdictionCode}`,
+        type: 'INFO',
+        metadata: { jobId, jurisdictionId, sourceUrl },
+      },
+    });
+
     // Step 1: Extract rule data (0-25%)
     await updateJobProgress(jobId, 5, 'Extracting rule data...');
 
@@ -178,20 +187,21 @@ async function processExtractionJob(data: ExtractionJobData) {
         confidenceScore: extractionResult.confidenceScore,
         extractionReasoning: extractionResult.extractionReasoning,
         complexity: complexity.score,
-        deadlines: JSON.stringify(extractionResult.deadlines),
-        relatedRules: JSON.stringify(extractionResult.relatedRules),
-        dna: dna ? JSON.stringify(dna) : undefined,
-        riskProfile: JSON.stringify(riskProfile),
-        swarmDebate: JSON.stringify(swarmDebate),
-        auditHistory: JSON.stringify([
+        // Prisma Json fields need explicit casting for TypeScript
+        deadlines: extractionResult.deadlines as unknown as [],
+        relatedRules: extractionResult.relatedRules as unknown as [],
+        dna: dna as unknown as object ?? undefined,
+        riskProfile: riskProfile as unknown as object,
+        swarmDebate: swarmDebate as unknown as object,
+        auditHistory: [
           {
             id: `audit-${Date.now()}`,
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
             action: 'created',
             user: 'system',
             hash: Buffer.from(JSON.stringify(extractionResult)).toString('base64').slice(0, 16),
           },
-        ]),
+        ],
       },
     });
 
@@ -202,7 +212,8 @@ async function processExtractionJob(data: ExtractionJobData) {
       lastSyncedAt: new Date(),
     };
     if (dna) {
-      updateData.dna = JSON.stringify(dna);
+      // Prisma Json fields need explicit casting for TypeScript
+      updateData.dna = dna as unknown as object;
     }
 
     await prisma.jurisdiction.update({
@@ -225,6 +236,15 @@ async function processExtractionJob(data: ExtractionJobData) {
     sseManager.sendJobCompleted(jobId, rule.id, jurisdictionId);
     console.log(`Completed extraction job ${jobId}, created rule ${rule.id}`);
 
+    // Log job completed
+    await prisma.systemLog.create({
+      data: {
+        message: `Extraction job completed for ${jurisdictionCode} - Rule ${rule.ruleCode} created`,
+        type: 'SUCCESS',
+        metadata: { jobId, jurisdictionId, ruleId: rule.id, ruleCode: rule.ruleCode },
+      },
+    });
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Extraction job ${jobId} failed:`, errorMessage);
@@ -239,6 +259,16 @@ async function processExtractionJob(data: ExtractionJobData) {
     });
 
     sseManager.sendJobFailed(jobId, errorMessage);
+
+    // Log job failed
+    await prisma.systemLog.create({
+      data: {
+        message: `Extraction job failed for ${jurisdictionCode}: ${errorMessage}`,
+        type: 'ERROR',
+        metadata: { jobId, jurisdictionId, error: errorMessage },
+      },
+    });
+
     throw error; // Re-throw for BullMQ retry logic
   }
 }

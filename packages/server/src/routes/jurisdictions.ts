@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
+import { validateBody } from '../middleware/validate.js';
 import { getScrapingStrategy } from '../services/scraper/aiScraper.js';
 import { watchtowerService } from '../services/watchtower/watchtowerService.js';
+import { SyncSettingsRequestSchema } from '@rulesharvester/shared';
 
 export const jurisdictionsRouter = Router();
 
@@ -195,6 +197,7 @@ jurisdictionsRouter.get(
 // Update sync settings
 jurisdictionsRouter.patch(
   '/:id/sync-settings',
+  validateBody(SyncSettingsRequestSchema),
   asyncHandler(async (req, res) => {
     const id = req.params.id as string;
     const { autoSyncEnabled, syncFrequency } = req.body;
@@ -202,10 +205,6 @@ jurisdictionsRouter.patch(
     const jurisdiction = await prisma.jurisdiction.findUnique({ where: { id } });
     if (!jurisdiction) {
       throw new NotFoundError('Jurisdiction');
-    }
-
-    if (syncFrequency && !['DAILY', 'WEEKLY', 'MANUAL_ONLY'].includes(syncFrequency)) {
-      return res.status(400).json({ success: false, error: 'Invalid syncFrequency' });
     }
 
     const updated = await prisma.jurisdiction.update({

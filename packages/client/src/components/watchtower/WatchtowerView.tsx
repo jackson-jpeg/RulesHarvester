@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -51,6 +51,7 @@ export function WatchtowerView() {
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchStatus = async () => {
     try {
@@ -67,6 +68,14 @@ export function WatchtowerView() {
 
   useEffect(() => {
     fetchStatus();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (scanTimeoutRef.current) {
+        clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const handleManualScan = async (frequency?: 'DAILY' | 'WEEKLY') => {
@@ -75,7 +84,7 @@ export function WatchtowerView() {
       await api.post('/watchtower/scan', { frequency });
       toast.success('Watchtower scan started');
       // Refresh status after a short delay
-      setTimeout(() => {
+      scanTimeoutRef.current = setTimeout(() => {
         fetchStatus();
         setIsScanning(false);
       }, 2000);

@@ -272,6 +272,51 @@ export const PaginationQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
+// Sync settings request schema
+export const SyncSettingsRequestSchema = z.object({
+  autoSyncEnabled: z.boolean().optional(),
+  syncFrequency: z.nativeEnum(SyncFrequency).optional(),
+}).refine(
+  (data) => data.autoSyncEnabled !== undefined || data.syncFrequency !== undefined,
+  { message: 'At least one of autoSyncEnabled or syncFrequency is required' }
+);
+
+// Bulk extract request schema
+export const BulkExtractRequestSchema = z.object({
+  jurisdictionIds: z.array(z.string().min(1)).min(1).max(50),
+  sourceUrl: z.string().url().optional(),
+  rawText: z.string().optional(),
+});
+
+// Bulk rules update schema
+export const BulkRulesUpdateSchema = z.object({
+  ruleIds: z.array(z.string().min(1)).min(1).max(100),
+  updates: z.object({
+    triggerType: z.nativeEnum(TriggerType).optional(),
+    confidenceScore: z.number().min(0).max(100).optional(),
+    complexity: z.number().int().min(1).max(10).optional(),
+  }).refine(
+    (data) => Object.keys(data).some(k => data[k as keyof typeof data] !== undefined),
+    { message: 'At least one update field is required' }
+  ),
+});
+
+// Bulk status update schema
+export const BulkStatusUpdateSchema = z.object({
+  jurisdictionIds: z.array(z.string().min(1)).min(1),
+  status: z.enum(['IDLE', 'SEARCHING', 'HARVESTING', 'SYNCED', 'FAILED', 'UPDATING']),
+});
+
+// Bulk delete rules schema
+export const BulkDeleteRulesSchema = z.object({
+  ruleIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
+// Batch acquire request schema
+export const BatchAcquireRequestSchema = z.object({
+  candidateIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
 // Filter schemas
 export const RuleFilterSchema = z.object({
   jurisdictionId: z.string().optional(),
@@ -306,3 +351,9 @@ export type CartographerSearchResultInput = z.infer<typeof CartographerSearchRes
 export type JurisdictionApprovalInput = z.infer<typeof JurisdictionApprovalRequestSchema>;
 export type JurisdictionRejectionInput = z.infer<typeof JurisdictionRejectionRequestSchema>;
 export type CartographerDiscoverInput = z.infer<typeof CartographerDiscoverRequestSchema>;
+export type SyncSettingsRequest = z.infer<typeof SyncSettingsRequestSchema>;
+export type BulkExtractRequest = z.infer<typeof BulkExtractRequestSchema>;
+export type BulkRulesUpdate = z.infer<typeof BulkRulesUpdateSchema>;
+export type BulkStatusUpdate = z.infer<typeof BulkStatusUpdateSchema>;
+export type BulkDeleteRules = z.infer<typeof BulkDeleteRulesSchema>;
+export type BatchAcquireRequest = z.infer<typeof BatchAcquireRequestSchema>;

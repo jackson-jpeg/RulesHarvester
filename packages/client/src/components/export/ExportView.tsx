@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -54,7 +54,7 @@ export function ExportView() {
   }, [rules, selectedJurisdictions]);
 
   // Build export URL with query params
-  const buildExportUrl = (format: ExportFormat) => {
+  const buildExportUrl = useCallback((format: ExportFormat) => {
     const params = new URLSearchParams();
     params.set('format', format);
     params.set('includeMetadata', String(includeMetadata));
@@ -63,10 +63,10 @@ export function ExportView() {
       params.set('jurisdictions', Array.from(selectedJurisdictions).join(','));
     }
     return `${API_BASE}/export?${params.toString()}`;
-  };
+  }, [includeMetadata, includeRaw, selectedJurisdictions]);
 
   // Fetch preview (limited data)
-  const fetchPreview = async () => {
+  const fetchPreview = useCallback(async () => {
     setPreviewLoading(true);
     try {
       const url = buildExportUrl(exportFormat);
@@ -94,14 +94,14 @@ export function ExportView() {
     } finally {
       setPreviewLoading(false);
     }
-  };
+  }, [buildExportUrl, exportFormat]);
 
   // Load preview when options change
   useEffect(() => {
     if (rules.length > 0) {
       fetchPreview();
     }
-  }, [exportFormat, selectedJurisdictions, includeMetadata, includeRaw, rules.length]);
+  }, [fetchPreview, rules.length]);
 
   const handleDownload = async () => {
     setIsExporting(true);
@@ -264,12 +264,16 @@ export function ExportView() {
                 {groupedJurisdictions.federalCircuits.map((j) => {
                   const ruleCount = rules.filter((r) => r.jurisdictionId === j.id).length;
                   if (ruleCount === 0) return null;
+                  const isSelected = selectedJurisdictions.has(j.id);
                   return (
                     <button
                       key={j.id}
                       onClick={() => toggleJurisdiction(j.id)}
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={`${isSelected ? 'Deselect' : 'Select'} ${j.name} (${ruleCount} rules)`}
                       className={`px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-2 ${
-                        selectedJurisdictions.has(j.id)
+                        isSelected
                           ? 'bg-amber-500 text-black'
                           : 'bg-surface-elevated text-text-secondary hover:bg-border'
                       }`}
@@ -283,12 +287,16 @@ export function ExportView() {
                 {groupedJurisdictions.states.map((j) => {
                   const ruleCount = rules.filter((r) => r.jurisdictionId === j.id).length;
                   if (ruleCount === 0) return null;
+                  const isSelected = selectedJurisdictions.has(j.id);
                   return (
                     <button
                       key={j.id}
                       onClick={() => toggleJurisdiction(j.id)}
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={`${isSelected ? 'Deselect' : 'Select'} ${j.name} (${ruleCount} rules)`}
                       className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-                        selectedJurisdictions.has(j.id)
+                        isSelected
                           ? 'bg-amber-500 text-black'
                           : 'bg-surface-elevated text-text-secondary hover:bg-border'
                       }`}

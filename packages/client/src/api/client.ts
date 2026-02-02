@@ -1,10 +1,12 @@
+import type { ApiResponse } from '@rulesharvester/shared';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
+/**
+ * Generate a unique request ID for tracking
+ */
+function generateRequestId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 class ApiClient {
@@ -24,6 +26,7 @@ class ApiClient {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'X-Request-ID': generateRequestId(),
       },
     };
 

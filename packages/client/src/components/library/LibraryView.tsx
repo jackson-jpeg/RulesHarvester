@@ -10,7 +10,21 @@ import { useUIStore } from '../../store/uiStore';
 import { useDebounce } from '../../hooks/useDebounce';
 import { api } from '../../api/client';
 import { TRIGGER_TYPE_LABELS, LogType } from '@rulesharvester/shared';
-import type { RuleTemplate } from '@rulesharvester/shared';
+import type { RuleTemplate, Deadline, TacticalRiskProfile } from '@rulesharvester/shared';
+
+// Type guards for safely accessing rule data
+function isDeadlineArray(value: unknown): value is Deadline[] {
+  return Array.isArray(value);
+}
+
+function isRiskProfile(value: unknown): value is TacticalRiskProfile {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'sanctionProbability' in value &&
+    typeof (value as TacticalRiskProfile).sanctionProbability === 'number'
+  );
+}
 
 const triggerTypeOptions = Object.entries(TRIGGER_TYPE_LABELS).map(([value, label]) => ({
   value,
@@ -152,6 +166,8 @@ export function LibraryView() {
           <CardContent className="flex items-center gap-4">
             <button
               onClick={selectAllRules}
+              role="checkbox"
+              aria-checked={selectedRuleIds.size === rules.length && rules.length > 0 ? 'true' : selectedRuleIds.size > 0 ? 'mixed' : 'false'}
               aria-label={selectedRuleIds.size === rules.length ? 'Deselect all rules' : 'Select all rules'}
               className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-surface ${
                 selectedRuleIds.size === rules.length && rules.length > 0
@@ -279,6 +295,8 @@ function RuleCard({ rule, isSelected, onSelect, onClick }: RuleCardProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={onSelect}
+              role="checkbox"
+              aria-checked={isSelected}
               aria-label={isSelected ? 'Deselect rule' : 'Select rule'}
               className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 focus:ring-offset-surface ${
                 isSelected
@@ -322,26 +340,26 @@ function RuleCard({ rule, isSelected, onSelect, onClick }: RuleCardProps) {
 
         {/* Deadlines summary */}
         <div className="flex items-center gap-2 text-xs text-text-muted">
-          <span>{(rule.deadlines as unknown[])?.length || 0} deadlines</span>
+          <span>{isDeadlineArray(rule.deadlines) ? rule.deadlines.length : 0} deadlines</span>
           <span>|</span>
           <span>Complexity: {rule.complexity || '-'}/10</span>
         </div>
 
         {/* Risk indicator */}
-        {rule.riskProfile && (
+        {isRiskProfile(rule.riskProfile) && (
           <div className="mt-3 pt-3 border-t border-border">
             <div className="flex items-center justify-between text-xs">
               <span className="text-text-muted">Sanction Risk</span>
               <span
                 className={
-                  (rule.riskProfile as { sanctionProbability: number }).sanctionProbability >= 70
+                  rule.riskProfile.sanctionProbability >= 70
                     ? 'text-rose-400'
-                    : (rule.riskProfile as { sanctionProbability: number }).sanctionProbability >= 40
+                    : rule.riskProfile.sanctionProbability >= 40
                     ? 'text-amber-400'
                     : 'text-emerald-400'
                 }
               >
-                {(rule.riskProfile as { sanctionProbability: number }).sanctionProbability}%
+                {rule.riskProfile.sanctionProbability}%
               </span>
             </div>
           </div>

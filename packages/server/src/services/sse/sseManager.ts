@@ -6,6 +6,9 @@ interface ClientInfo {
   lastActivity: number;
 }
 
+// Maximum number of concurrent SSE clients
+const MAX_CLIENTS = 1000;
+
 class SSEManager {
   private clients: Map<string, ClientInfo> = new Map();
   private clientCounter = 0;
@@ -40,6 +43,15 @@ class SSEManager {
   }
 
   addClient(res: Response): string {
+    // Enforce max clients limit - remove oldest if at capacity
+    if (this.clients.size >= MAX_CLIENTS) {
+      const oldestClientId = this.getOldestClientId();
+      if (oldestClientId) {
+        console.log(`SSE client limit reached (${MAX_CLIENTS}), removing oldest: ${oldestClientId}`);
+        this.removeClient(oldestClientId);
+      }
+    }
+
     const clientId = `client-${++this.clientCounter}-${Date.now()}`;
     this.clients.set(clientId, {
       response: res,
@@ -47,6 +59,20 @@ class SSEManager {
     });
     console.log(`SSE client connected: ${clientId} (total: ${this.clients.size})`);
     return clientId;
+  }
+
+  private getOldestClientId(): string | null {
+    let oldestId: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [clientId, info] of this.clients) {
+      if (info.lastActivity < oldestTime) {
+        oldestTime = info.lastActivity;
+        oldestId = clientId;
+      }
+    }
+
+    return oldestId;
   }
 
   removeClient(clientId: string): void {

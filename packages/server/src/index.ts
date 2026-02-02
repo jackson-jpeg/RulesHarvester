@@ -191,8 +191,20 @@ app.post('/api/watchtower/scan', async (req, res) => {
           sseManager.sendWatchtowerChangeDetected(result.jurisdictionId, result.changeDescription);
         }
       }
-    }).catch((error) => {
+    }).catch(async (error) => {
       console.error('Watchtower: Manual scan failed:', error);
+      // Log the error to SystemLog for audit trail
+      try {
+        await prisma.systemLog.create({
+          data: {
+            message: `Watchtower manual scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'ERROR',
+            metadata: { frequency, error: String(error) },
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to log watchtower error:', logError);
+      }
     });
 
     res.json({
@@ -229,6 +241,18 @@ function initializeWatchtowerScheduler() {
       console.log(`Watchtower: Daily scan complete - ${results.length} checked, ${relevantChanges} relevant changes`);
     } catch (error) {
       console.error('Watchtower: Daily scan failed:', error);
+      // Log the error to SystemLog for audit trail
+      try {
+        await prisma.systemLog.create({
+          data: {
+            message: `Watchtower daily scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'ERROR',
+            metadata: { frequency: 'DAILY', error: String(error) },
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to log watchtower error:', logError);
+      }
     }
   });
 
@@ -252,6 +276,18 @@ function initializeWatchtowerScheduler() {
       console.log(`Watchtower: Weekly scan complete - ${results.length} checked, ${relevantChanges} relevant changes`);
     } catch (error) {
       console.error('Watchtower: Weekly scan failed:', error);
+      // Log the error to SystemLog for audit trail
+      try {
+        await prisma.systemLog.create({
+          data: {
+            message: `Watchtower weekly scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'ERROR',
+            metadata: { frequency: 'WEEKLY', error: String(error) },
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to log watchtower error:', logError);
+      }
     }
   });
 

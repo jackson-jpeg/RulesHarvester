@@ -18,6 +18,9 @@ interface ExtractionJobData {
 const COMPLEXITY_THRESHOLD_SIMPLE = 3;
 const COMPLEXITY_THRESHOLD_COMPLEX = 7;
 
+// Maximum queue size for in-memory fallback (prevents unbounded memory growth)
+const MAX_QUEUE_SIZE = 100;
+
 // In-memory queue for local development (no Redis required)
 // When Redis is available, jobs are routed to BullMQ instead
 class InMemoryQueue {
@@ -33,9 +36,14 @@ class InMemoryQueue {
       return;
     }
 
+    // Enforce max queue size for in-memory fallback
+    if (this.jobs.length >= MAX_QUEUE_SIZE) {
+      throw new Error(`Queue full: maximum ${MAX_QUEUE_SIZE} pending jobs allowed. Please wait for existing jobs to complete or configure Redis.`);
+    }
+
     // Otherwise, use in-memory queue
     this.jobs.push(data);
-    console.log(`Job queued (in-memory): ${data.jobId}`);
+    console.log(`Job queued (in-memory): ${data.jobId} (queue size: ${this.jobs.length})`);
     this.processNext();
   }
 
@@ -158,20 +166,21 @@ class InMemoryQueue {
           confidenceScore: extractionResult.confidenceScore,
           extractionReasoning: extractionResult.extractionReasoning,
           complexity: complexity.score,
-          deadlines: JSON.stringify(extractionResult.deadlines),
-          relatedRules: JSON.stringify(extractionResult.relatedRules),
-          dna: dna ? JSON.stringify(dna) : undefined,
-          riskProfile: JSON.stringify(riskProfile),
-          swarmDebate: JSON.stringify(swarmDebate),
-          auditHistory: JSON.stringify([
+          // Prisma Json fields need explicit casting for TypeScript
+          deadlines: extractionResult.deadlines as unknown as [],
+          relatedRules: extractionResult.relatedRules as unknown as [],
+          dna: dna as unknown as object ?? undefined,
+          riskProfile: riskProfile as unknown as object,
+          swarmDebate: swarmDebate as unknown as object,
+          auditHistory: [
             {
               id: `audit-${Date.now()}`,
-              timestamp: new Date(),
+              timestamp: new Date().toISOString(),
               action: 'created',
               user: 'system',
               hash: Buffer.from(JSON.stringify(extractionResult)).toString('base64').slice(0, 16),
             },
-          ]),
+          ],
         },
       });
 
@@ -182,7 +191,8 @@ class InMemoryQueue {
         lastSyncedAt: new Date(),
       };
       if (dna) {
-        updateData.dna = JSON.stringify(dna);
+        // Prisma Json fields need explicit casting for TypeScript
+        updateData.dna = dna as unknown as object;
       }
       await prisma.jurisdiction.update({
         where: { id: jurisdictionId },

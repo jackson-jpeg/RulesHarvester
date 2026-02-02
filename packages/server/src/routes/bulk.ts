@@ -1,22 +1,22 @@
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, ValidationError } from '../middleware/errorHandler.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  BulkExtractRequestSchema,
+  BulkRulesUpdateSchema,
+  BulkStatusUpdateSchema,
+  BulkDeleteRulesSchema,
+} from '@rulesharvester/shared';
 
 export const bulkRouter = Router();
 
 // Batch extraction for multiple jurisdictions
 bulkRouter.post(
   '/extract',
+  validateBody(BulkExtractRequestSchema),
   asyncHandler(async (req, res) => {
     const { jurisdictionIds, sourceUrl, rawText } = req.body;
-
-    if (!Array.isArray(jurisdictionIds) || jurisdictionIds.length === 0) {
-      throw new ValidationError('jurisdictionIds array is required');
-    }
-
-    if (jurisdictionIds.length > 50) {
-      throw new ValidationError('Maximum 50 jurisdictions per batch');
-    }
 
     // Verify all jurisdictions exist
     const jurisdictions = await prisma.jurisdiction.findMany({
@@ -61,34 +61,15 @@ bulkRouter.post(
 // Update multiple rules at once
 bulkRouter.patch(
   '/rules',
+  validateBody(BulkRulesUpdateSchema),
   asyncHandler(async (req, res) => {
     const { ruleIds, updates } = req.body;
 
-    if (!Array.isArray(ruleIds) || ruleIds.length === 0) {
-      throw new ValidationError('ruleIds array is required');
-    }
-
-    if (ruleIds.length > 100) {
-      throw new ValidationError('Maximum 100 rules per batch');
-    }
-
-    if (!updates || typeof updates !== 'object') {
-      throw new ValidationError('updates object is required');
-    }
-
-    // Only allow certain fields to be bulk updated
-    const allowedFields = ['triggerType', 'confidenceScore', 'complexity'];
+    // Build update data from validated updates
     const updateData: Record<string, unknown> = {};
-
-    for (const field of allowedFields) {
-      if (updates[field] !== undefined) {
-        updateData[field] = updates[field];
-      }
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      throw new ValidationError(`No valid fields to update. Allowed fields: ${allowedFields.join(', ')}`);
-    }
+    if (updates.triggerType !== undefined) updateData.triggerType = updates.triggerType;
+    if (updates.confidenceScore !== undefined) updateData.confidenceScore = updates.confidenceScore;
+    if (updates.complexity !== undefined) updateData.complexity = updates.complexity;
 
     // Verify all rules exist
     const existingRules = await prisma.rule.findMany({
@@ -121,21 +102,9 @@ bulkRouter.patch(
 // Mass status update for jurisdictions
 bulkRouter.patch(
   '/jurisdictions/status',
+  validateBody(BulkStatusUpdateSchema),
   asyncHandler(async (req, res) => {
     const { jurisdictionIds, status } = req.body;
-
-    if (!Array.isArray(jurisdictionIds) || jurisdictionIds.length === 0) {
-      throw new ValidationError('jurisdictionIds array is required');
-    }
-
-    if (!status) {
-      throw new ValidationError('status is required');
-    }
-
-    const validStatuses = ['IDLE', 'SEARCHING', 'HARVESTING', 'SYNCED', 'FAILED', 'UPDATING'];
-    if (!validStatuses.includes(status)) {
-      throw new ValidationError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
-    }
 
     // Perform bulk update
     const result = await prisma.jurisdiction.updateMany({
@@ -156,16 +125,9 @@ bulkRouter.patch(
 // Bulk delete rules
 bulkRouter.delete(
   '/rules',
+  validateBody(BulkDeleteRulesSchema),
   asyncHandler(async (req, res) => {
     const { ruleIds } = req.body;
-
-    if (!Array.isArray(ruleIds) || ruleIds.length === 0) {
-      throw new ValidationError('ruleIds array is required');
-    }
-
-    if (ruleIds.length > 100) {
-      throw new ValidationError('Maximum 100 rules per batch delete');
-    }
 
     // Get the rules to find their jurisdictions for count update
     const rules = await prisma.rule.findMany({

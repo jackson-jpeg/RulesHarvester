@@ -176,16 +176,33 @@ rulesRouter.delete(
   })
 );
 
-// Get rules by jurisdiction
+// Get rules by jurisdiction (paginated)
 rulesRouter.get(
   '/jurisdiction/:jurisdictionId',
   asyncHandler(async (req, res) => {
     const jurisdictionId = req.params.jurisdictionId as string;
-    const rules = await prisma.rule.findMany({
-      where: { jurisdictionId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
 
-    res.json({ success: true, data: rules });
+    const [rules, total] = await Promise.all([
+      prisma.rule.findMany({
+        where: { jurisdictionId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.rule.count({ where: { jurisdictionId } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        items: rules,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   })
 );
