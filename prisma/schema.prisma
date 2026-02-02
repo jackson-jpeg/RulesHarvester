@@ -29,6 +29,12 @@ model Jurisdiction {
   autoSyncEnabled  Boolean  @default(false)
   syncFrequency    String   @default("WEEKLY") // DAILY, WEEKLY, MANUAL_ONLY
 
+  // Scraper health tracking (for self-healing pipeline)
+  consecutiveScrapeFailures Int       @default(0)
+  lastScrapeError           String?
+  lastSuccessfulScrape      DateTime?
+  scraperConfigVersion      Int       @default(1)
+
   // Discovery metadata (populated by Cartographer)
   discoverySource    String?    // 'claude_web_search', 'manual'
   discoveryScore     Float?     // AI confidence (0-100)
@@ -67,6 +73,10 @@ model Rule {
   complexity           Int?
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
+
+  // Version tracking (for diff-based watchtower updates)
+  version         Int     @default(1)
+  previousRawText String?
 
   // Stored as JSON
   deadlines      Json  @default("[]")
@@ -177,8 +187,9 @@ enum JurisdictionType {
 }
 
 enum JurisdictionStatus {
-  DISCOVERED     // NEW: Pending approval from Cartographer discovery
+  DISCOVERED      // Pending approval from Cartographer discovery
   IDLE
+  AUTO_HARVESTING // Auto-harvest in progress after approval
   SEARCHING
   HARVESTING
   SYNCED
@@ -230,4 +241,46 @@ enum LogType {
   SUCCESS
   AI
   ERROR
+}
+
+// Inbox item for unified approval dashboard
+model InboxItem {
+  id          String        @id @default(cuid())
+  type        InboxItemType
+  status      InboxStatus   @default(PENDING)
+  title       String
+  description String?
+
+  // Polymorphic reference (one of these will be set based on type)
+  jurisdictionId String?
+  ruleId         String?
+  conflictId     String?
+
+  // Metadata
+  confidence Float?
+  sourceUrl  String?
+  metadata   Json?
+
+  // Workflow
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+  reviewedBy String?
+  resolution String? // 'approved', 'rejected', 'deferred'
+
+  @@index([type, status])
+  @@index([createdAt])
+  @@index([status])
+}
+
+enum InboxItemType {
+  JURISDICTION_APPROVAL // New jurisdiction from Cartographer
+  RULE_VERIFICATION     // Rule needing human review (confidence < 90%)
+  WATCHTOWER_CHANGE     // Detected rule change from Watchtower
+  SCRAPER_FAILURE       // Scraper needs manual intervention
+}
+
+enum InboxStatus {
+  PENDING
+  REVIEWED
+  DEFERRED
 }

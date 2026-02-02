@@ -11,6 +11,8 @@ import {
   DISCOVERY_SEARCH_QUERIES,
   CARTOGRAPHER_MAX_RESULTS,
   CartographerDiscoveryResponseSchema,
+  CONFIDENCE_THRESHOLDS,
+  InboxItemType,
 } from '@rulesharvester/shared';
 import type {
   CartographerSearchResult,
@@ -21,6 +23,9 @@ import type {
 } from '@rulesharvester/shared';
 import { sseManager } from '../sse/sseManager.js';
 import { cleanHtmlForLLM } from '../scraper/aiScraper.js';
+import { autoHarvestService } from '../harvest/autoHarvestService.js';
+import { inboxService } from '../inbox/inboxService.js';
+import { logger } from '../../utils/logger.js';
 
 const anthropic = new Anthropic();
 
@@ -428,9 +433,26 @@ ${cleanedHtml}`,
           };
 
           discovered.push(candidate);
-          console.log(
+          logger.info(
             `Cartographer: Discovered ${analysis.suggestedName} (${analysis.suggestedCode}) with ${analysis.confidence}% confidence`
           );
+
+          // Create inbox item for approval (unless auto-approve is enabled and confidence is high)
+          if (analysis.confidence < CONFIDENCE_THRESHOLDS.AUTO_APPROVE) {
+            await inboxService.createJurisdictionApprovalItem(
+              jurisdictionId,
+              analysis.suggestedName,
+              analysis.confidence,
+              result.url,
+              {
+                code: analysis.suggestedCode,
+                type: analysis.jurisdictionType,
+                hasRulesSection: analysis.hasRulesSection,
+                rulesPageUrl: analysis.rulesPageUrl,
+                reasoning: analysis.reasoning,
+              }
+            );
+          }
 
           // Small delay to avoid rate limiting
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -510,7 +532,7 @@ ${cleanedHtml}`,
   }
 
   /**
-   * Approve a discovered jurisdiction
+   * Approve a discovered jurisdiction and trigger auto-harvest
    */
   async approveJurisdiction(
     id: string,
@@ -528,10 +550,11 @@ ${cleanedHtml}`,
       throw new Error('Jurisdiction is not in DISCOVERED status');
     }
 
+    // Update to AUTO_HARVESTING status (will be updated to SYNCED after harvest)
     await prisma.jurisdiction.update({
       where: { id },
       data: {
-        status: JurisdictionStatus.IDLE,
+        status: JurisdictionStatus.AUTO_HARVESTING,
         name: data.name || jurisdiction.name,
         code: data.code || jurisdiction.code,
         autoSyncEnabled: data.autoSyncEnabled ?? false,
@@ -542,7 +565,15 @@ ${cleanedHtml}`,
     });
 
     sseManager.sendJurisdictionApproved(id, jurisdiction.name);
-    console.log(`Cartographer: Approved jurisdiction ${jurisdiction.name}`);
+    logger.info(`Cartographer: Approved jurisdiction ${jurisdiction.name}`);
+
+    // Trigger auto-harvest in background (don't await)
+    autoHarvestService.initiateHarvest(id).catch((error) => {
+      logger.error(
+        `Cartographer: Auto-harvest failed for ${jurisdiction.name}:`,
+        error
+      );
+    });
   }
 
   /**

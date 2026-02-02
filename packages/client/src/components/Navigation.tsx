@@ -15,7 +15,8 @@ type TabId =
   | 'export'
   | 'settings'
   | 'watchtower'
-  | 'discovery';
+  | 'discovery'
+  | 'inbox';
 
 interface NavItem {
   id: TabId;
@@ -25,6 +26,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+  { id: 'inbox', label: 'Inbox', icon: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4' },
   { id: 'discovery', label: 'Discover', icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7' },
   { id: 'crawler', label: 'Crawler', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
   { id: 'library', label: 'Library', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
@@ -36,11 +38,11 @@ const navItems: NavItem[] = [
 ];
 
 export function Navigation() {
-  const { activeTab, setActiveTab, conflictCount, setConflictCount } = useUIStore();
+  const { activeTab, setActiveTab, conflictCount, setConflictCount, inboxCount, setInboxCount } = useUIStore();
   const { jobs } = useJobsStore();
   const { rules } = useRulesStore();
 
-  // Initial fetch of conflict count - SSE handles updates
+  // Initial fetch of conflict count and inbox count - SSE handles updates
   useEffect(() => {
     const fetchConflictCount = async () => {
       try {
@@ -52,14 +54,26 @@ export function Navigation() {
       }
     };
 
+    const fetchInboxCount = async () => {
+      try {
+        const response = await api.get<{ pending: number }>('/inbox/stats');
+        setInboxCount(response.pending || 0);
+      } catch {
+        // Silently fail
+      }
+    };
+
     fetchConflictCount();
-  }, [setConflictCount]);
+    fetchInboxCount();
+  }, [setConflictCount, setInboxCount]);
 
   const activeJobCount = jobs.filter(j => j.status === JobStatus.PROCESSING || j.status === JobStatus.PENDING).length;
 
   // Badge counts for each nav item
   const getBadgeCount = (id: TabId): number | null => {
     switch (id) {
+      case 'inbox':
+        return inboxCount > 0 ? inboxCount : null;
       case 'workflow':
         return activeJobCount > 0 ? activeJobCount : null;
       case 'conflicts':
@@ -76,6 +90,8 @@ export function Navigation() {
     switch (id) {
       case 'conflicts':
         return 'error';
+      case 'inbox':
+        return 'warning';
       case 'workflow':
         return 'warning';
       default:

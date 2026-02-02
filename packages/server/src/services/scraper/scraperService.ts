@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { getSiteConfig, RULE_PATTERNS, type CourtSiteConfig } from './courtSites.js';
+import { scraperHealthService } from './scraperHealthService.js';
 
 export interface ScrapeResult {
   url: string;
@@ -53,7 +54,37 @@ class ScraperService {
    */
   async scrapeUrl(url: string, jurisdictionId?: string): Promise<ScrapeResult> {
     const config = await getSiteConfig(url, jurisdictionId);
-    const html = await this.fetchHtml(url);
+
+    let html: string;
+    try {
+      html = await this.fetchHtml(url);
+
+      // Record successful scrape if jurisdiction provided
+      if (jurisdictionId) {
+        await scraperHealthService.recordScrapeResult({
+          jurisdictionId,
+          success: true,
+        });
+      }
+    } catch (error) {
+      // Record failed scrape if jurisdiction provided
+      if (jurisdictionId) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const statusCode =
+          error instanceof Error && 'response' in error
+            ? (error as { response?: { status?: number } }).response?.status
+            : undefined;
+
+        await scraperHealthService.recordScrapeResult({
+          jurisdictionId,
+          success: false,
+          error: errorMessage,
+          statusCode,
+        });
+      }
+      throw error;
+    }
+
     const $ = cheerio.load(html);
 
     // Extract title

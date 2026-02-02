@@ -15,10 +15,12 @@ import { conflictsRouter } from './routes/conflicts.js';
 import { bulkRouter } from './routes/bulk.js';
 import { exportRouter } from './routes/export.js';
 import { cartographerRouter } from './routes/cartographer.js';
+import inboxRouter from './routes/inbox.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { sseManager } from './services/sse/sseManager.js';
 import { watchtowerService } from './services/watchtower/watchtowerService.js';
+import { cartographerScheduler } from './services/cartographer/cartographerScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +125,7 @@ app.use('/api/conflicts', conflictsRouter);
 app.use('/api/bulk', bulkRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/cartographer', cartographerRouter);
+app.use('/api/inbox', inboxRouter);
 
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
@@ -300,8 +303,9 @@ app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`SSE endpoint: http://localhost:${PORT}/api/events`);
 
-  // Initialize watchtower scheduler
+  // Initialize schedulers
   initializeWatchtowerScheduler();
+  cartographerScheduler.initialize();
 });
 
 export default app;

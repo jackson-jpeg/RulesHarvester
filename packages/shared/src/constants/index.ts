@@ -57,6 +57,7 @@ export const JOB_STATUS_CONFIG = {
 export const JURISDICTION_STATUS_CONFIG = {
   DISCOVERED: { label: 'Discovered', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
   IDLE: { label: 'Idle', color: 'text-slate-400', bgColor: 'bg-slate-500/20' },
+  AUTO_HARVESTING: { label: 'Auto-Harvesting', color: 'text-indigo-400', bgColor: 'bg-indigo-500/20' },
   SEARCHING: { label: 'Searching', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
   HARVESTING: { label: 'Harvesting', color: 'text-amber-400', bgColor: 'bg-amber-500/20' },
   SYNCED: { label: 'Synced', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
@@ -110,6 +111,13 @@ export const API_ENDPOINTS = {
   CARTOGRAPHER_REJECT: (id: string) => `/api/cartographer/reject/${id}`,
   CARTOGRAPHER_STATUS: '/api/cartographer/status',
   CARTOGRAPHER_BULK_APPROVE: '/api/cartographer/bulk-approve',
+
+  // Inbox (Unified Approval Dashboard)
+  INBOX: '/api/inbox',
+  INBOX_STATS: '/api/inbox/stats',
+  INBOX_APPROVE: (id: string) => `/api/inbox/${id}/approve`,
+  INBOX_REJECT: (id: string) => `/api/inbox/${id}/reject`,
+  INBOX_BULK_APPROVE: '/api/inbox/bulk-approve',
 };
 
 // Default pagination
@@ -128,6 +136,19 @@ export const CLAUDE_MAX_TOKENS = 4096;
 // Cartographer configuration
 export const CARTOGRAPHER_RATE_LIMIT = 10; // discoveries per minute
 export const CARTOGRAPHER_MAX_RESULTS = 50; // max jurisdictions per discovery run
+
+// Confidence thresholds for automated decision routing
+export const CONFIDENCE_THRESHOLDS = {
+  AUTO_APPROVE: 90, // >= 90% auto-approved
+  MANUAL_REVIEW: 50, // 50-89% goes to inbox for manual review
+  AUTO_REJECT: 50, // < 50% auto-rejected or flagged
+};
+
+// Scraper health configuration
+export const SCRAPER_HEALTH = {
+  MAX_CONSECUTIVE_FAILURES: 3, // Trigger healing after 3 consecutive failures
+  HEALING_COOLDOWN_MS: 60 * 60 * 1000, // 1 hour cooldown between healing attempts
+};
 
 // Trusted court domains (whitelist)
 export const TRUSTED_COURT_DOMAINS = [

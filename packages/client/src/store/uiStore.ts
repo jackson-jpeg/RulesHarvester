@@ -13,7 +13,8 @@ type TabId =
   | 'settings'
   | 'jurisdiction-detail'
   | 'watchtower'
-  | 'discovery';
+  | 'discovery'
+  | 'inbox';
 
 type SSEConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
@@ -25,6 +26,7 @@ interface UIState {
   sidebarOpen: boolean;
   sseConnectionStatus: SSEConnectionStatus;
   conflictCount: number;
+  inboxCount: number;
 
   // Actions
   setActiveTab: (tab: TabId) => void;
@@ -36,6 +38,9 @@ interface UIState {
   setSSEConnectionStatus: (status: SSEConnectionStatus) => void;
   setConflictCount: (count: number) => void;
   incrementConflictCount: () => void;
+  setInboxCount: (count: number) => void;
+  incrementInboxCount: () => void;
+  decrementInboxCount: () => void;
 }
 
 const MAX_LOGS = 50;
@@ -52,6 +57,7 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
   sseConnectionStatus: 'connecting',
   conflictCount: 0,
+  inboxCount: 0,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -89,4 +95,10 @@ export const useUIStore = create<UIState>((set) => ({
   setConflictCount: (count) => set({ conflictCount: count }),
 
   incrementConflictCount: () => set((state) => ({ conflictCount: state.conflictCount + 1 })),
+
+  setInboxCount: (count) => set({ inboxCount: count }),
+
+  incrementInboxCount: () => set((state) => ({ inboxCount: state.inboxCount + 1 })),
+
+  decrementInboxCount: () => set((state) => ({ inboxCount: Math.max(0, state.inboxCount - 1) })),
 }));

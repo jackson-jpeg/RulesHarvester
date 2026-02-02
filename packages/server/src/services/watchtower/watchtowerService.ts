@@ -1,7 +1,10 @@
 import { createHash } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../index.js';
-import { WatchtowerHashMetadataSchema, CLAUDE_MODEL_FAST } from '@rulesharvester/shared';
+import { WatchtowerHashMetadataSchema, CLAUDE_MODEL_FAST, InboxItemType } from '@rulesharvester/shared';
+import { inboxService } from '../inbox/inboxService.js';
+import { generateDiff, getDiffSummary } from '../../utils/diff.js';
+import { logger } from '../../utils/logger.js';
 
 const anthropic = new Anthropic();
 
@@ -365,6 +368,92 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
       // Release lock
       this.isRunning = false;
       this.runStartedAt = null;
+    }
+  }
+
+  /**
+   * Handle a detected rule change - store previous version and create inbox item
+   */
+  async handleRuleChange(
+    ruleId: string,
+    newRawText: string,
+    changeDescription?: string
+  ): Promise<void> {
+    const rule = await prisma.rule.findUnique({
+      where: { id: ruleId },
+      select: {
+        id: true,
+        ruleCode: true,
+        name: true,
+        rawText: true,
+        version: true,
+        jurisdictionId: true,
+      },
+    });
+
+    if (!rule) {
+      logger.warn(`Watchtower: Rule ${ruleId} not found`);
+      return;
+    }
+
+    const previousRawText = rule.rawText;
+
+    // Generate diff if we have previous text
+    let diffSummary: string | undefined;
+    let diffMetadata: Record<string, unknown> | undefined;
+
+    if (previousRawText && newRawText) {
+      const diff = generateDiff(previousRawText, newRawText);
+      diffSummary = getDiffSummary(diff);
+      diffMetadata = {
+        added: diff.summary.added,
+        removed: diff.summary.removed,
+        hasSignificantChanges: diff.summary.hasSignificantChanges,
+      };
+
+      // Skip if no significant changes
+      if (!diff.summary.hasSignificantChanges) {
+        logger.info(
+          `Watchtower: Skipping minor change for ${rule.name} (${diffSummary})`
+        );
+        return;
+      }
+    }
+
+    // Update rule with previous text and increment version
+    await prisma.rule.update({
+      where: { id: ruleId },
+      data: {
+        previousRawText: previousRawText,
+        rawText: newRawText,
+        version: { increment: 1 },
+      },
+    });
+
+    logger.info(
+      `Watchtower: Rule ${rule.name} updated to version ${rule.version + 1}`
+    );
+
+    // Check if inbox item already exists
+    const existingItem = await inboxService.existsForEntity(
+      InboxItemType.WATCHTOWER_CHANGE,
+      ruleId
+    );
+
+    if (!existingItem) {
+      await inboxService.createWatchtowerChangeItem(
+        ruleId,
+        rule.name,
+        rule.jurisdictionId,
+        {
+          ruleCode: rule.ruleCode,
+          previousVersion: rule.version,
+          newVersion: rule.version + 1,
+          changeDescription,
+          diffSummary,
+          ...diffMetadata,
+        }
+      );
     }
   }
 

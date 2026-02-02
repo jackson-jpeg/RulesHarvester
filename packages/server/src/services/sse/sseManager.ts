@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import type { SSEEvent, JobProgressEvent, JobCompletedEvent } from '@rulesharvester/shared';
+import type { SSEEvent, JobProgressEvent, JobCompletedEvent, InboxItem } from '@rulesharvester/shared';
 
 interface ClientInfo {
   response: Response;
@@ -203,6 +203,109 @@ class SSEManager {
     const event: SSEEvent = {
       type: 'jurisdiction_approved' as SSEEvent['type'],
       payload: { jurisdictionId, name },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  // Cartographer scheduler events
+  sendCartographerScheduledRunStarted(frequency: 'DAILY' | 'WEEKLY'): void {
+    const event: SSEEvent = {
+      type: 'cartographer_scheduled_run_started' as SSEEvent['type'],
+      payload: { frequency },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendCartographerScheduledRunComplete(discovered: number): void {
+    const event: SSEEvent = {
+      type: 'cartographer_scheduled_run_complete' as SSEEvent['type'],
+      payload: { discovered },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  // Auto-harvest events
+  sendAutoHarvestStarted(jurisdictionId: string, name: string): void {
+    const event: SSEEvent = {
+      type: 'auto_harvest_started' as SSEEvent['type'],
+      payload: { jurisdictionId, name },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendAutoHarvestProgress(jurisdictionId: string, step: string, progress: number): void {
+    const event: SSEEvent = {
+      type: 'auto_harvest_progress' as SSEEvent['type'],
+      payload: { jurisdictionId, step, progress },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendAutoHarvestComplete(jurisdictionId: string, rulesExtracted: number): void {
+    const event: SSEEvent = {
+      type: 'auto_harvest_complete' as SSEEvent['type'],
+      payload: { jurisdictionId, rulesExtracted },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendAutoHarvestFailed(jurisdictionId: string, error: string): void {
+    const event: SSEEvent = {
+      type: 'auto_harvest_failed' as SSEEvent['type'],
+      payload: { jurisdictionId, error },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  // Scraper healing events
+  sendScraperHealingStarted(jurisdictionId: string, name: string): void {
+    const event: SSEEvent = {
+      type: 'scraper_healing_started' as SSEEvent['type'],
+      payload: { jurisdictionId, name },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendScraperHealingComplete(jurisdictionId: string, name: string): void {
+    const event: SSEEvent = {
+      type: 'scraper_healing_complete' as SSEEvent['type'],
+      payload: { jurisdictionId, name },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendScraperHealingFailed(jurisdictionId: string, name: string, error: string): void {
+    const event: SSEEvent = {
+      type: 'scraper_healing_failed' as SSEEvent['type'],
+      payload: { jurisdictionId, name, error },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  // Inbox events
+  sendInboxItemCreated(item: InboxItem): void {
+    const event: SSEEvent = {
+      type: 'inbox_item_created' as SSEEvent['type'],
+      payload: { item },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendInboxItemUpdated(item: InboxItem): void {
+    const event: SSEEvent = {
+      type: 'inbox_item_updated' as SSEEvent['type'],
+      payload: { item },
       timestamp: new Date(),
     };
     this.broadcast(event);

@@ -33,6 +33,7 @@ export enum JobStatus {
 export enum JurisdictionStatus {
   DISCOVERED = 'DISCOVERED', // Pending approval from Cartographer discovery
   IDLE = 'IDLE',
+  AUTO_HARVESTING = 'AUTO_HARVESTING', // Auto-harvest in progress after approval
   SEARCHING = 'SEARCHING',
   HARVESTING = 'HARVESTING',
   SYNCED = 'SYNCED',
@@ -94,6 +95,20 @@ export enum DiscoveryStatus {
   PROCESSING = 'PROCESSING',
   ACQUIRED = 'ACQUIRED',
   REJECTED = 'REJECTED',
+}
+
+// Inbox item types for unified approval dashboard
+export enum InboxItemType {
+  JURISDICTION_APPROVAL = 'JURISDICTION_APPROVAL', // New jurisdiction from Cartographer
+  RULE_VERIFICATION = 'RULE_VERIFICATION', // Rule needing human review (confidence < 90%)
+  WATCHTOWER_CHANGE = 'WATCHTOWER_CHANGE', // Detected rule change from Watchtower
+  SCRAPER_FAILURE = 'SCRAPER_FAILURE', // Scraper needs manual intervention
+}
+
+export enum InboxStatus {
+  PENDING = 'PENDING',
+  REVIEWED = 'REVIEWED',
+  DEFERRED = 'DEFERRED',
 }
 
 // Deadline interface
@@ -240,6 +255,43 @@ export interface JurisdictionMeta {
   approvedBy?: string;
   rejectedAt?: Date;
   rejectionReason?: string;
+  // Scraper health tracking (for self-healing pipeline)
+  consecutiveScrapeFailures?: number;
+  lastScrapeError?: string;
+  lastSuccessfulScrape?: Date;
+  scraperConfigVersion?: number;
+}
+
+// Inbox item for unified approval dashboard
+export interface InboxItem {
+  id: string;
+  type: InboxItemType;
+  status: InboxStatus;
+  title: string;
+  description?: string;
+  // Polymorphic reference (one of these will be set based on type)
+  jurisdictionId?: string;
+  ruleId?: string;
+  conflictId?: string;
+  // Metadata
+  confidence?: number;
+  sourceUrl?: string;
+  metadata?: Record<string, unknown>;
+  // Workflow
+  createdAt: Date;
+  reviewedAt?: Date;
+  reviewedBy?: string;
+  resolution?: 'approved' | 'rejected' | 'deferred';
+}
+
+export interface InboxStats {
+  total: number;
+  pending: number;
+  reviewed: number;
+  deferred: number;
+  byType: {
+    [key in InboxItemType]: number;
+  };
 }
 
 // AI Agent
@@ -290,7 +342,18 @@ export interface SSEEvent {
     | 'cartographer_discovery_started'
     | 'cartographer_discovery_complete'
     | 'cartographer_discovery_failed'
-    | 'jurisdiction_approved';
+    | 'cartographer_scheduled_run_started'
+    | 'cartographer_scheduled_run_complete'
+    | 'jurisdiction_approved'
+    | 'auto_harvest_started'
+    | 'auto_harvest_progress'
+    | 'auto_harvest_complete'
+    | 'auto_harvest_failed'
+    | 'scraper_healing_started'
+    | 'scraper_healing_complete'
+    | 'scraper_healing_failed'
+    | 'inbox_item_created'
+    | 'inbox_item_updated';
   payload: unknown;
   timestamp: Date;
 }

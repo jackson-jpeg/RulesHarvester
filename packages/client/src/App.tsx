@@ -17,6 +17,7 @@ import { SettingsView } from './components/settings/SettingsView';
 import { WorkflowView } from './components/workflow/WorkflowView';
 import { WatchtowerView } from './components/watchtower/WatchtowerView';
 import { JurisdictionDiscoveryView } from './components/discovery/JurisdictionDiscoveryView';
+import { InboxView } from './components/InboxView';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ViewErrorBoundary } from './components/ui/ViewErrorBoundary';
 import { ToastContainer } from './components/ui/Toast';
@@ -61,6 +62,8 @@ function App() {
         return <ViewErrorBoundary viewName="Watchtower"><WatchtowerView /></ViewErrorBoundary>;
       case 'discovery':
         return <ViewErrorBoundary viewName="Jurisdiction Discovery"><JurisdictionDiscoveryView /></ViewErrorBoundary>;
+      case 'inbox':
+        return <InboxView />;
       default:
         return <ViewErrorBoundary viewName="Dashboard"><Dashboard /></ViewErrorBoundary>;
     }
