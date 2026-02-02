@@ -7,13 +7,22 @@ import type { z } from 'zod';
 
 export const rulesRouter = Router();
 
+// Whitelist of allowed sort fields to prevent injection
+const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'ruleCode', 'confidenceScore', 'name', 'triggerType'] as const;
+type AllowedSortField = typeof ALLOWED_SORT_FIELDS[number];
+
+function isAllowedSortField(field: string): field is AllowedSortField {
+  return ALLOWED_SORT_FIELDS.includes(field as AllowedSortField);
+}
+
 // Get all rules with pagination and filtering
 rulesRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
-    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const requestedSortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortBy = isAllowedSortField(requestedSortBy) ? requestedSortBy : 'createdAt';
     const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
     const jurisdictionId = req.query.jurisdictionId as string | undefined;
     const triggerType = req.query.triggerType as string | undefined;

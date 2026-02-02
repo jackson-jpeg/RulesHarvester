@@ -66,9 +66,8 @@ export function ConflictView() {
       return;
     }
 
-    for (const id of unresolvedIds) {
-      await handleResolve(id, 'accept');
-    }
+    // Resolve all conflicts in parallel for better performance
+    await Promise.all(unresolvedIds.map((id) => handleResolve(id, 'accept')));
   };
 
   const unresolvedConflicts = conflicts.filter((c) => c.status === ConflictStatus.UNRESOLVED);
