@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { ZodSchema } from 'zod';
 import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS } from '@rulesharvester/shared';
 
 // Initialize Anthropic client with 2 minute timeout
@@ -76,6 +77,28 @@ export function extractToolResult<T>(
   for (const block of response.content) {
     if (block.type === 'tool_use' && block.name === toolName) {
       return block.input as T;
+    }
+  }
+  return null;
+}
+
+// Helper to extract and validate tool result from Claude response
+export function extractAndValidateToolResult<T>(
+  response: Anthropic.Message,
+  toolName: string,
+  schema: ZodSchema<T>
+): T | null {
+  for (const block of response.content) {
+    if (block.type === 'tool_use' && block.name === toolName) {
+      const result = schema.safeParse(block.input);
+      if (result.success) {
+        return result.data;
+      }
+      console.error(
+        `Claude tool "${toolName}" returned invalid data:`,
+        result.error.issues
+      );
+      return null;
     }
   }
   return null;

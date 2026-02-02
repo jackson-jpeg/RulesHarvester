@@ -59,34 +59,48 @@ export const useJobsStore = create<JobsState>((set, get) => ({
   },
 
   cancelJob: async (id: string) => {
+    // Store previous state for rollback on error
+    const previousJobs = get().jobs;
+
+    // Optimistic update
+    set((state) => ({
+      jobs: state.jobs.map((j) =>
+        j.id === id
+          ? { ...j, status: JobStatus.FAILED, error: 'Cancelled by user' }
+          : j
+      ),
+    }));
+
     try {
       await api.post(`/jobs/${id}/cancel`);
-      set((state) => ({
-        jobs: state.jobs.map((j) =>
-          j.id === id
-            ? { ...j, status: JobStatus.FAILED, error: 'Cancelled by user' }
-            : j
-        ),
-      }));
     } catch (error) {
+      // Rollback on error
       set({
+        jobs: previousJobs,
         error: error instanceof Error ? error.message : 'Failed to cancel job',
       });
     }
   },
 
   retryJob: async (id: string) => {
+    // Store previous state for rollback on error
+    const previousJobs = get().jobs;
+
+    // Optimistic update
+    set((state) => ({
+      jobs: state.jobs.map((j) =>
+        j.id === id
+          ? { ...j, status: JobStatus.PENDING, progress: 0, error: undefined }
+          : j
+      ),
+    }));
+
     try {
       await api.post(`/jobs/${id}/retry`);
-      set((state) => ({
-        jobs: state.jobs.map((j) =>
-          j.id === id
-            ? { ...j, status: JobStatus.PENDING, progress: 0, error: undefined }
-            : j
-        ),
-      }));
     } catch (error) {
+      // Rollback on error
       set({
+        jobs: previousJobs,
         error: error instanceof Error ? error.message : 'Failed to retry job',
       });
     }

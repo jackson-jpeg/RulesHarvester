@@ -78,16 +78,19 @@ statsRouter.get(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const rules = await prisma.rule.findMany({
-      where: { createdAt: { gte: thirtyDaysAgo } },
-      select: { createdAt: true },
-    });
+    // Use raw SQL for efficient date-based grouping
+    const dailyCounts = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM "Rule"
+      WHERE created_at >= ${thirtyDaysAgo}
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `;
 
-    // Group by date
+    // Convert to map for easy lookup
     const byDate = new Map<string, number>();
-    for (const rule of rules) {
-      const date = rule.createdAt.toISOString().split('T')[0];
-      byDate.set(date, (byDate.get(date) || 0) + 1);
+    for (const row of dailyCounts) {
+      byDate.set(row.date, Number(row.count));
     }
 
     // Fill in missing dates with zeros
@@ -110,24 +113,31 @@ statsRouter.get(
 statsRouter.get(
   '/complexity',
   asyncHandler(async (_req, res) => {
-    const rules = await prisma.rule.findMany({
-      where: { complexity: { not: null } },
-      select: { complexity: true },
-    });
+    // Use raw SQL for efficient complexity bucketing
+    const complexityCounts = await prisma.$queryRaw<{ level: string; count: bigint }[]>`
+      SELECT
+        CASE
+          WHEN complexity <= 3 THEN 'low'
+          WHEN complexity <= 6 THEN 'medium'
+          ELSE 'high'
+        END as level,
+        COUNT(*) as count
+      FROM "Rule"
+      WHERE complexity IS NOT NULL
+      GROUP BY level
+    `;
 
-    // Group by complexity level
+    // Convert to distribution object
     const distribution = {
-      low: 0, // 1-3
-      medium: 0, // 4-6
-      high: 0, // 7-10
+      low: 0,
+      medium: 0,
+      high: 0,
     };
 
-    for (const rule of rules) {
-      if (rule.complexity !== null) {
-        if (rule.complexity <= 3) distribution.low++;
-        else if (rule.complexity <= 6) distribution.medium++;
-        else distribution.high++;
-      }
+    for (const row of complexityCounts) {
+      if (row.level === 'low') distribution.low = Number(row.count);
+      else if (row.level === 'medium') distribution.medium = Number(row.count);
+      else if (row.level === 'high') distribution.high = Number(row.count);
     }
 
     res.json({ success: true, data: distribution });

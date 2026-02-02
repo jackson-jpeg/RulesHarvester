@@ -10,8 +10,11 @@ export default {
         border: '#30363d',
         text: {
           primary: '#e6edf3',
-          secondary: '#8b949e',
-          muted: '#6e7681',
+          secondary: '#a1a9b2', // Improved contrast (was #8b949e)
+          muted: '#848d97', // Improved contrast (was #6e7681)
+        },
+        accent: {
+          primary: '#f59e0b', // Amber for focus rings
         },
       },
       fontFamily: {

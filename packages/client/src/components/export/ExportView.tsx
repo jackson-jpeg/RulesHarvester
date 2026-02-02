@@ -189,9 +189,9 @@ export function ExportView() {
       <Card>
         <CardHeader>Export Options</CardHeader>
         <CardContent>
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* Format Selection */}
-            <div className="col-span-3">
+            <div className="col-span-1 md:col-span-3">
               <p className="text-sm font-medium text-text-secondary mb-2">Format</p>
               <div className="flex gap-2">
                 {(['json', 'csv', 'yaml'] as ExportFormat[]).map((format) => (
@@ -211,7 +211,7 @@ export function ExportView() {
             </div>
 
             {/* Options */}
-            <div className="col-span-4">
+            <div className="col-span-1 md:col-span-4">
               <p className="text-sm font-medium text-text-secondary mb-2">Options</p>
               <div className="space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -219,7 +219,7 @@ export function ExportView() {
                     type="checkbox"
                     checked={includeMetadata}
                     onChange={(e) => setIncludeMetadata(e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface-elevated accent-amber-500"
+                    className="w-4 h-4 rounded border-border bg-surface-elevated accent-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-surface"
                   />
                   <span className="text-sm">Include AI metadata (DNA, risk, debate)</span>
                 </label>
@@ -228,7 +228,7 @@ export function ExportView() {
                     type="checkbox"
                     checked={includeRaw}
                     onChange={(e) => setIncludeRaw(e.target.checked)}
-                    className="w-4 h-4 rounded border-border bg-surface-elevated accent-amber-500"
+                    className="w-4 h-4 rounded border-border bg-surface-elevated accent-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-surface"
                   />
                   <span className="text-sm">Include raw text</span>
                 </label>
@@ -236,7 +236,7 @@ export function ExportView() {
             </div>
 
             {/* Selection Info */}
-            <div className="col-span-5 flex items-end">
+            <div className="col-span-1 md:col-span-5 flex items-end">
               <div className="flex items-center gap-4 w-full justify-end">
                 <span className="text-sm text-text-muted">
                   {selectedJurisdictions.size === 0
@@ -307,7 +307,7 @@ export function ExportView() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="text-center">
             <p className="text-3xl font-bold text-amber-400">

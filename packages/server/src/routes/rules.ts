@@ -108,7 +108,18 @@ rulesRouter.patch(
     if (body.rawText !== undefined) updates.rawText = body.rawText;
 
     // Add audit entry
-    const auditHistory = JSON.parse((rule.auditHistory as string) || '[]');
+    let auditHistory: unknown[] = [];
+    try {
+      const rawHistory = rule.auditHistory;
+      if (typeof rawHistory === 'string') {
+        auditHistory = JSON.parse(rawHistory);
+      } else if (Array.isArray(rawHistory)) {
+        auditHistory = rawHistory;
+      }
+    } catch {
+      console.error(`Failed to parse audit history for rule ${id}, starting fresh`);
+      auditHistory = [];
+    }
     auditHistory.push({
       id: `audit-${Date.now()}`,
       timestamp: new Date(),

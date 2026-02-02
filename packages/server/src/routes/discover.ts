@@ -36,19 +36,17 @@ discoverRouter.post(
         });
 
         if (jurisdiction) {
-          for (const candidate of candidates) {
-            await prisma.discoveryCandidate.create({
-              data: {
-                jurisdictionId,
-                jurisdiction: jurisdiction.name,
-                ruleId: candidate.ruleCode,
-                snippet: candidate.snippet.slice(0, 1000), // Truncate long snippets
-                sourceUrl: url,
-                relevanceScore: candidate.relevanceScore,
-                status: 'DISCOVERED',
-              },
-            });
-          }
+          await prisma.discoveryCandidate.createMany({
+            data: candidates.map((candidate) => ({
+              jurisdictionId,
+              jurisdiction: jurisdiction.name,
+              ruleId: candidate.ruleCode,
+              snippet: candidate.snippet.slice(0, 1000), // Truncate long snippets
+              sourceUrl: url,
+              relevanceScore: candidate.relevanceScore,
+              status: 'DISCOVERED' as const,
+            })),
+          });
         }
       }
     }
@@ -102,23 +100,39 @@ discoverRouter.post(
       });
 
       if (jurisdiction) {
+        // Collect all candidates from all pages
+        const allCandidates: {
+          jurisdictionId: string;
+          jurisdiction: string;
+          ruleId: string;
+          snippet: string;
+          sourceUrl: string;
+          relevanceScore: number;
+          status: 'DISCOVERED';
+        }[] = [];
+
         for (const page of result.pages) {
           const candidates = scraperService.extractRuleCandidates(page);
           for (const candidate of candidates) {
-            await prisma.discoveryCandidate.create({
-              data: {
-                jurisdictionId,
-                jurisdiction: jurisdiction.name,
-                ruleId: candidate.ruleCode,
-                snippet: candidate.snippet.slice(0, 1000),
-                sourceUrl: page.url,
-                relevanceScore: candidate.relevanceScore,
-                status: 'DISCOVERED',
-              },
+            allCandidates.push({
+              jurisdictionId,
+              jurisdiction: jurisdiction.name,
+              ruleId: candidate.ruleCode,
+              snippet: candidate.snippet.slice(0, 1000),
+              sourceUrl: page.url,
+              relevanceScore: candidate.relevanceScore,
+              status: 'DISCOVERED',
             });
-            totalCandidates++;
           }
         }
+
+        // Batch insert all candidates
+        if (allCandidates.length > 0) {
+          await prisma.discoveryCandidate.createMany({
+            data: allCandidates,
+          });
+        }
+        totalCandidates = allCandidates.length;
       }
     }
 

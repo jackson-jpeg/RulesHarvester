@@ -191,11 +191,15 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
       const text = response.content[0].type === 'text' ? response.content[0].text : '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const result = JSON.parse(jsonMatch[0]);
-        return {
-          isRelevant: result.isRelevant === true,
-          description: result.description,
-        };
+        try {
+          const result = JSON.parse(jsonMatch[0]);
+          return {
+            isRelevant: result.isRelevant === true,
+            description: result.description,
+          };
+        } catch (parseError) {
+          console.error('Watchtower: Failed to parse AI relevance response:', parseError);
+        }
       }
     } catch (error) {
       console.error('Watchtower: Relevance check failed:', error);

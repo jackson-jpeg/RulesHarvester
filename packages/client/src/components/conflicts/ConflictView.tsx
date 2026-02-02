@@ -104,7 +104,7 @@ export function ConflictView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="text-center">
             <p className="text-3xl font-bold text-rose-400">{unresolvedConflicts.length}</p>
@@ -224,7 +224,8 @@ function ConflictCard({ conflict, isExpanded, onToggleExpand, onResolve }: Confl
           </div>
           <button
             onClick={onToggleExpand}
-            className="p-2 rounded-lg hover:bg-surface-elevated text-text-secondary transition-colors"
+            aria-label={isExpanded ? 'Collapse conflict details' : 'Expand conflict details'}
+            className="p-2 rounded-lg hover:bg-surface-elevated text-text-secondary transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
             <svg
               className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -238,7 +239,7 @@ function ConflictCard({ conflict, isExpanded, onToggleExpand, onResolve }: Confl
         </div>
 
         {/* Rule Comparison */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="p-3 bg-surface-elevated rounded-lg border-l-4 border-blue-500">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-400">Rule A</p>

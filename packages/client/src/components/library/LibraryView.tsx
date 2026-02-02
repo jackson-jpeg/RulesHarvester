@@ -138,7 +138,8 @@ export function LibraryView() {
           <CardContent className="flex items-center gap-4">
             <button
               onClick={selectAllRules}
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+              aria-label={selectedRuleIds.size === rules.length ? 'Deselect all rules' : 'Select all rules'}
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-surface ${
                 selectedRuleIds.size === rules.length && rules.length > 0
                   ? 'bg-amber-500 border-amber-500'
                   : selectedRuleIds.size > 0
@@ -264,7 +265,8 @@ function RuleCard({ rule, isSelected, onSelect, onClick }: RuleCardProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={onSelect}
-              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              aria-label={isSelected ? 'Deselect rule' : 'Select rule'}
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 focus:ring-offset-surface ${
                 isSelected
                   ? 'bg-amber-500 border-amber-500'
                   : 'border-border hover:border-text-secondary'

@@ -169,6 +169,8 @@ app.post('/api/watchtower/scan', async (req, res) => {
           sseManager.sendWatchtowerChangeDetected(result.jurisdictionId, result.changeDescription);
         }
       }
+    }).catch((error) => {
+      console.error('Watchtower: Manual scan failed:', error);
     });
 
     res.json({
