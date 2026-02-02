@@ -5,7 +5,7 @@ import { Badge } from './ui/Badge';
 import { ProgressBar } from './ui/ProgressBar';
 
 export function Sidebar() {
-  const { sidebarOpen, toggleSidebar, systemLogs, agents } = useUIStore();
+  const { sidebarOpen, toggleSidebar, systemLogs, agents, sseConnectionStatus } = useUIStore();
   const { groupedJurisdictions } = useJurisdictionsStore();
   const { jobs } = useJobsStore();
 
@@ -38,7 +38,21 @@ export function Sidebar() {
       <div className="flex items-center justify-between p-4 border-b border-border">
         {sidebarOpen && (
           <div>
-            <h1 className="text-lg font-bold text-amber-400">RulesHarvester</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-amber-400">RulesHarvester</h1>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  sseConnectionStatus === 'connected'
+                    ? 'bg-emerald-400'
+                    : sseConnectionStatus === 'reconnecting'
+                    ? 'bg-amber-400 animate-pulse'
+                    : sseConnectionStatus === 'connecting'
+                    ? 'bg-blue-400 animate-pulse'
+                    : 'bg-rose-400'
+                }`}
+                title={`Connection: ${sseConnectionStatus}`}
+              />
+            </div>
             <p className="text-xs text-text-muted">v2.0</p>
           </div>
         )}

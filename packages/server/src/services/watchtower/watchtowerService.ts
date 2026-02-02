@@ -254,20 +254,41 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
 
   /**
    * Check all jurisdictions with auto-sync enabled
+   * @param frequency Optional filter by sync frequency (DAILY, WEEKLY)
    */
-  async runScheduledChecks(): Promise<WatchtowerCheckResult[]> {
+  async runScheduledChecks(frequency?: 'DAILY' | 'WEEKLY'): Promise<WatchtowerCheckResult[]> {
+    const whereClause: {
+      autoSyncEnabled: boolean;
+      courtWebsite: { not: null };
+      syncFrequency?: string;
+    } = {
+      autoSyncEnabled: true,
+      courtWebsite: { not: null },
+    };
+
+    if (frequency) {
+      whereClause.syncFrequency = frequency;
+    }
+
     const jurisdictions = await prisma.jurisdiction.findMany({
-      where: {
-        autoSyncEnabled: true,
-        courtWebsite: { not: null },
-      },
-      select: { id: true },
+      where: whereClause,
+      select: { id: true, name: true },
     });
+
+    if (jurisdictions.length === 0) {
+      return [];
+    }
+
+    console.log(`Watchtower: Starting ${frequency || 'all'} scan for ${jurisdictions.length} jurisdictions`);
 
     const results: WatchtowerCheckResult[] = [];
 
     for (const jurisdiction of jurisdictions) {
       try {
+        // Add random jitter (0-60s) to stagger checks and avoid overwhelming servers
+        const jitter = Math.floor(Math.random() * 60000);
+        await new Promise(resolve => setTimeout(resolve, jitter));
+
         const result = await this.checkForUpdates(jurisdiction.id);
         results.push(result);
 
@@ -275,6 +296,18 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (error) {
         console.error(`Watchtower: Failed to check ${jurisdiction.id}:`, error);
+        // Log failure but don't mark jurisdiction as FAILED
+        await prisma.systemLog.create({
+          data: {
+            type: 'WARN',
+            message: `Watchtower check failed for ${jurisdiction.name}`,
+            metadata: {
+              jurisdictionId: jurisdiction.id,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        });
       }
     }
 
@@ -290,12 +323,63 @@ Respond with JSON: {"isRelevant": boolean, "description": "brief description if 
           totalChecked: results.length,
           changesDetected,
           relevantChanges,
+          frequency: frequency || 'manual',
           timestamp: new Date().toISOString(),
         },
       },
     });
 
     return results;
+  }
+
+  /**
+   * Get recent watchtower activity from system logs
+   */
+  async getRecentActivity(limit = 20): Promise<{
+    scans: Array<{
+      id: string;
+      message: string;
+      metadata: Record<string, unknown>;
+      createdAt: Date;
+    }>;
+    changes: Array<{
+      id: string;
+      message: string;
+      metadata: Record<string, unknown>;
+      createdAt: Date;
+    }>;
+  }> {
+    const [scans, changes] = await Promise.all([
+      prisma.systemLog.findMany({
+        where: {
+          message: { startsWith: 'Watchtower scan' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+      prisma.systemLog.findMany({
+        where: {
+          message: { startsWith: 'WATCHTOWER_HASH:' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    return {
+      scans: scans.map(s => ({
+        id: s.id,
+        message: s.message,
+        metadata: (s.metadata as Record<string, unknown>) || {},
+        createdAt: s.createdAt,
+      })),
+      changes: changes.map(c => ({
+        id: c.id,
+        message: c.message,
+        metadata: (c.metadata as Record<string, unknown>) || {},
+        createdAt: c.createdAt,
+      })),
+    };
   }
 }
 

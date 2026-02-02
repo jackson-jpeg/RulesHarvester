@@ -5,8 +5,8 @@ import { Badge } from '../ui/Badge';
 import { Select } from '../ui/Select';
 import { ProgressBar } from '../ui/ProgressBar';
 import { Spinner } from '../ui/Spinner';
-import { Toggle } from '../ui/Toggle';
 import { useJobsStore } from '../../store/jobsStore';
+import { useUIStore } from '../../store/uiStore';
 import { JOB_STATUS_CONFIG } from '@rulesharvester/shared';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'failed';
@@ -14,28 +14,14 @@ type SortBy = 'newest' | 'oldest' | 'progress';
 
 export function WorkflowView() {
   const { jobs, isLoading, fetchJobs, cancelJob, retryJob } = useJobsStore();
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const { sseConnectionStatus } = useUIStore();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
 
-  // Initial fetch
+  // Initial fetch only - SSE handles real-time updates
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
-
-  // Auto-refresh when there are active jobs
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const hasActiveJobs = jobs.some((j) => j.status === 'pending' || j.status === 'processing');
-    if (!hasActiveJobs) return;
-
-    const interval = setInterval(() => {
-      fetchJobs();
-    }, 3000); // Refresh every 3 seconds when there are active jobs
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, jobs, fetchJobs]);
 
   const activeJobs = jobs.filter((j) => j.status === 'pending' || j.status === 'processing');
   const completedJobs = jobs.filter((j) => j.status === 'completed');
@@ -93,8 +79,18 @@ export function WorkflowView() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">Auto-refresh</span>
-            <Toggle checked={autoRefresh} onChange={setAutoRefresh} />
+            <span
+              className={`w-2 h-2 rounded-full ${
+                sseConnectionStatus === 'connected'
+                  ? 'bg-emerald-400'
+                  : sseConnectionStatus === 'reconnecting'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-rose-400'
+              }`}
+            />
+            <span className="text-sm text-text-secondary">
+              {sseConnectionStatus === 'connected' ? 'Live' : sseConnectionStatus === 'reconnecting' ? 'Reconnecting...' : 'Offline'}
+            </span>
           </div>
           <Button onClick={() => fetchJobs()} isLoading={isLoading}>
             Refresh

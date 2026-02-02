@@ -1,7 +1,7 @@
 import { useUIStore } from '../store/uiStore';
 import { useJobsStore } from '../store/jobsStore';
 import { useRulesStore } from '../store/rulesStore';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { api } from '../api/client';
 
 type TabId =
@@ -12,7 +12,8 @@ type TabId =
   | 'conflicts'
   | 'verify'
   | 'export'
-  | 'settings';
+  | 'settings'
+  | 'watchtower';
 
 interface NavItem {
   id: TabId;
@@ -28,15 +29,15 @@ const navItems: NavItem[] = [
   { id: 'conflicts', label: 'Conflicts', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
   { id: 'verify', label: 'Verify', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
   { id: 'export', label: 'Export', icon: 'M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { id: 'watchtower', label: 'Watch', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' },
 ];
 
 export function Navigation() {
-  const { activeTab, setActiveTab } = useUIStore();
+  const { activeTab, setActiveTab, conflictCount, setConflictCount } = useUIStore();
   const { jobs } = useJobsStore();
   const { rules } = useRulesStore();
-  const [conflictCount, setConflictCount] = useState(0);
 
-  // Fetch conflict count periodically
+  // Initial fetch of conflict count - SSE handles updates
   useEffect(() => {
     const fetchConflictCount = async () => {
       try {
@@ -49,9 +50,7 @@ export function Navigation() {
     };
 
     fetchConflictCount();
-    const interval = setInterval(fetchConflictCount, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+  }, [setConflictCount]);
 
   const activeJobCount = jobs.filter(j => j.status === 'processing' || j.status === 'pending').length;
 

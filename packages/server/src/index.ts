@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
+import cron from 'node-cron';
 import { rulesRouter } from './routes/rules.js';
 import { jobsRouter } from './routes/jobs.js';
 import { jurisdictionsRouter } from './routes/jurisdictions.js';
@@ -12,8 +13,10 @@ import { discoverRouter } from './routes/discover.js';
 import { statsRouter } from './routes/stats.js';
 import { conflictsRouter } from './routes/conflicts.js';
 import { bulkRouter } from './routes/bulk.js';
+import { exportRouter } from './routes/export.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sseManager } from './services/sse/sseManager.js';
+import { watchtowerService } from './services/watchtower/watchtowerService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,6 +100,7 @@ app.use('/api/discover', discoverRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/conflicts', conflictsRouter);
 app.use('/api/bulk', bulkRouter);
+app.use('/api/export', exportRouter);
 
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
@@ -121,11 +125,123 @@ async function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
+// Watchtower API endpoints
+app.get('/api/watchtower/status', async (_req, res) => {
+  try {
+    const activity = await watchtowerService.getRecentActivity(10);
+    const jurisdictions = await prisma.jurisdiction.findMany({
+      where: { autoSyncEnabled: true },
+      select: { id: true, code: true, name: true, syncFrequency: true, lastSyncedAt: true },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        enabledJurisdictions: jurisdictions.length,
+        jurisdictions,
+        recentScans: activity.scans,
+        recentChanges: activity.changes,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get watchtower status',
+    });
+  }
+});
+
+app.post('/api/watchtower/scan', async (req, res) => {
+  try {
+    const { frequency } = req.body as { frequency?: 'DAILY' | 'WEEKLY' };
+
+    sseManager.sendWatchtowerScanStarted(frequency);
+
+    // Run in background, don't await
+    watchtowerService.runScheduledChecks(frequency).then((results) => {
+      const changesDetected = results.filter(r => r.hasChanges).length;
+      const relevantChanges = results.filter(r => r.relevantUpdate).length;
+      sseManager.sendWatchtowerScanComplete(results.length, changesDetected, relevantChanges);
+
+      // Send individual change notifications
+      for (const result of results) {
+        if (result.relevantUpdate) {
+          sseManager.sendWatchtowerChangeDetected(result.jurisdictionId, result.changeDescription);
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Watchtower scan started',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to start watchtower scan',
+    });
+  }
+});
+
+// Initialize Watchtower Scheduler
+function initializeWatchtowerScheduler() {
+  // Daily check at 6:00 AM UTC
+  cron.schedule('0 6 * * *', async () => {
+    console.log('Watchtower: Running daily scheduled checks...');
+    sseManager.sendWatchtowerScanStarted('DAILY');
+
+    try {
+      const results = await watchtowerService.runScheduledChecks('DAILY');
+      const changesDetected = results.filter(r => r.hasChanges).length;
+      const relevantChanges = results.filter(r => r.relevantUpdate).length;
+      sseManager.sendWatchtowerScanComplete(results.length, changesDetected, relevantChanges);
+
+      for (const result of results) {
+        if (result.relevantUpdate) {
+          sseManager.sendWatchtowerChangeDetected(result.jurisdictionId, result.changeDescription);
+        }
+      }
+
+      console.log(`Watchtower: Daily scan complete - ${results.length} checked, ${relevantChanges} relevant changes`);
+    } catch (error) {
+      console.error('Watchtower: Daily scan failed:', error);
+    }
+  });
+
+  // Weekly check on Sundays at 3:00 AM UTC
+  cron.schedule('0 3 * * 0', async () => {
+    console.log('Watchtower: Running weekly scheduled checks...');
+    sseManager.sendWatchtowerScanStarted('WEEKLY');
+
+    try {
+      const results = await watchtowerService.runScheduledChecks('WEEKLY');
+      const changesDetected = results.filter(r => r.hasChanges).length;
+      const relevantChanges = results.filter(r => r.relevantUpdate).length;
+      sseManager.sendWatchtowerScanComplete(results.length, changesDetected, relevantChanges);
+
+      for (const result of results) {
+        if (result.relevantUpdate) {
+          sseManager.sendWatchtowerChangeDetected(result.jurisdictionId, result.changeDescription);
+        }
+      }
+
+      console.log(`Watchtower: Weekly scan complete - ${results.length} checked, ${relevantChanges} relevant changes`);
+    } catch (error) {
+      console.error('Watchtower: Weekly scan failed:', error);
+    }
+  });
+
+  console.log('Watchtower scheduler initialized (Daily: 6:00 AM UTC, Weekly: Sundays 3:00 AM UTC)');
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`RulesHarvester server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`SSE endpoint: http://localhost:${PORT}/api/events`);
+
+  // Initialize watchtower scheduler
+  initializeWatchtowerScheduler();
 });
 
 export default app;

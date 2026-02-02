@@ -249,7 +249,16 @@ export interface PaginatedResponse<T> {
 
 // SSE event types
 export interface SSEEvent {
-  type: 'job_progress' | 'job_completed' | 'job_failed' | 'rule_updated' | 'conflict_detected';
+  type:
+    | 'job_progress'
+    | 'job_completed'
+    | 'job_failed'
+    | 'rule_created'
+    | 'rule_updated'
+    | 'conflict_detected'
+    | 'watchtower_scan_started'
+    | 'watchtower_scan_complete'
+    | 'watchtower_change_detected';
   payload: unknown;
   timestamp: Date;
 }

@@ -11,7 +11,10 @@ type TabId =
   | 'verify'
   | 'export'
   | 'settings'
-  | 'jurisdiction-detail';
+  | 'jurisdiction-detail'
+  | 'watchtower';
+
+type SSEConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 interface UIState {
   activeTab: TabId;
@@ -19,6 +22,8 @@ interface UIState {
   agents: AIAgent[];
   isAutoHarvesting: boolean;
   sidebarOpen: boolean;
+  sseConnectionStatus: SSEConnectionStatus;
+  conflictCount: number;
 
   // Actions
   setActiveTab: (tab: TabId) => void;
@@ -27,6 +32,9 @@ interface UIState {
   updateAgentStatus: (agentId: string, status: AIAgent['status'], task?: string) => void;
   setAutoHarvesting: (enabled: boolean) => void;
   toggleSidebar: () => void;
+  setSSEConnectionStatus: (status: SSEConnectionStatus) => void;
+  setConflictCount: (count: number) => void;
+  incrementConflictCount: () => void;
 }
 
 const MAX_LOGS = 50;
@@ -41,6 +49,8 @@ export const useUIStore = create<UIState>((set) => ({
   ],
   isAutoHarvesting: false,
   sidebarOpen: true,
+  sseConnectionStatus: 'connecting',
+  conflictCount: 0,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -72,4 +82,10 @@ export const useUIStore = create<UIState>((set) => ({
   setAutoHarvesting: (enabled) => set({ isAutoHarvesting: enabled }),
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  setSSEConnectionStatus: (status) => set({ sseConnectionStatus: status }),
+
+  setConflictCount: (count) => set({ conflictCount: count }),
+
+  incrementConflictCount: () => set((state) => ({ conflictCount: state.conflictCount + 1 })),
 }));

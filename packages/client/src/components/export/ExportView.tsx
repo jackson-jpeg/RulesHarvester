@@ -1,24 +1,28 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { Spinner } from '../ui/Spinner';
 import { useRulesStore } from '../../store/rulesStore';
 import { useJurisdictionsStore } from '../../store/jurisdictionsStore';
 import { useUIStore } from '../../store/uiStore';
 import { toast } from '../ui/Toast';
-import type { RuleTemplate } from '@rulesharvester/shared';
 
 type ExportFormat = 'json' | 'csv' | 'yaml';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function ExportView() {
   const { rules } = useRulesStore();
   const { jurisdictions, groupedJurisdictions } = useJurisdictionsStore();
   const { addLog } = useUIStore();
-  const [copied, setCopied] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('json');
   const [selectedJurisdictions, setSelectedJurisdictions] = useState<Set<string>>(new Set());
   const [includeMetadata, setIncludeMetadata] = useState(true);
   const [includeRaw, setIncludeRaw] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [previewData, setPreviewData] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Toggle jurisdiction selection
   const toggleJurisdiction = (id: string) => {
@@ -42,189 +46,120 @@ export function ExportView() {
     }
   };
 
-  // Filter rules by selected jurisdictions
+  // Filter rules by selected jurisdictions (for display counts)
   const filteredRules = useMemo(() => {
     if (selectedJurisdictions.size === 0) return rules;
     return rules.filter(r => selectedJurisdictions.has(r.jurisdictionId));
   }, [rules, selectedJurisdictions]);
 
-  const exportData = useMemo(() => {
-    // Group rules by jurisdiction
-    const rulesByJurisdiction = filteredRules.reduce<Record<string, RuleTemplate[]>>((acc, rule) => {
-      if (!acc[rule.jurisdictionId]) {
-        acc[rule.jurisdictionId] = [];
-      }
-      acc[rule.jurisdictionId].push(rule);
-      return acc;
-    }, {});
-
-    // Build export payload
-    const jurisdictionData = jurisdictions
-      .filter((j) => rulesByJurisdiction[j.id]?.length > 0)
-      .map((j) => ({
-        id: j.id,
-        code: j.code,
-        name: j.name,
-        type: j.type,
-        ...(includeMetadata && { dna: j.dna }),
-        rule_sets: rulesByJurisdiction[j.id]?.map((r) => ({
-          rule_code: r.ruleCode,
-          name: r.name,
-          trigger_type: r.triggerType,
-          deadlines: r.deadlines,
-          related_rules: r.relatedRules,
-          confidence_score: r.confidenceScore,
-          complexity: r.complexity,
-          ...(includeMetadata && { risk_profile: r.riskProfile }),
-          ...(includeMetadata && { swarm_debate: r.swarmDebate }),
-          source_url: r.sourceUrl,
-          ...(includeRaw && { raw_text: r.rawText }),
-        })),
-      }));
-
-    // Generate integrity hash (simple hash for demo)
-    const dataString = JSON.stringify(jurisdictionData);
-    const hash = btoa(dataString.slice(0, 100)).slice(0, 16);
-
-    return {
-      system_metadata: {
-        version: '2.0.0',
-        engine: 'RulesHarvester',
-        ai_model: 'claude-sonnet-4-20250514',
-        export_date: new Date().toISOString(),
-        integrity_hash: hash,
-        node_count: filteredRules.length,
-        jurisdiction_count: jurisdictionData.length,
-      },
-      jurisdictions: jurisdictionData,
-    };
-  }, [filteredRules, jurisdictions, includeMetadata, includeRaw]);
-
-  // Convert to CSV format
-  const convertToCSV = (data: typeof exportData) => {
-    const rows: string[][] = [];
-
-    // Header
-    rows.push([
-      'Jurisdiction Code',
-      'Jurisdiction Name',
-      'Rule Code',
-      'Rule Name',
-      'Trigger Type',
-      'Deadlines',
-      'Confidence Score',
-      'Complexity',
-      'Source URL',
-    ]);
-
-    // Data rows
-    for (const j of data.jurisdictions) {
-      for (const r of j.rule_sets || []) {
-        rows.push([
-          j.code,
-          j.name,
-          r.rule_code,
-          r.name,
-          r.trigger_type,
-          JSON.stringify(r.deadlines),
-          String(r.confidence_score),
-          String(r.complexity || ''),
-          r.source_url || '',
-        ]);
-      }
+  // Build export URL with query params
+  const buildExportUrl = (format: ExportFormat) => {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    params.set('includeMetadata', String(includeMetadata));
+    params.set('includeRaw', String(includeRaw));
+    if (selectedJurisdictions.size > 0) {
+      params.set('jurisdictions', Array.from(selectedJurisdictions).join(','));
     }
-
-    return rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    return `${API_BASE}/export?${params.toString()}`;
   };
 
-  // Convert to YAML-like format (simple implementation)
-  const convertToYAML = (data: unknown, indent = 0): string => {
-    const spaces = '  '.repeat(indent);
-    let result = '';
+  // Fetch preview (limited data)
+  const fetchPreview = async () => {
+    setPreviewLoading(true);
+    try {
+      const url = buildExportUrl(exportFormat);
+      const response = await fetch(url);
 
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        result += `${spaces}- `;
-        if (typeof item === 'object' && item !== null) {
-          result += '\n' + convertToYAML(item, indent + 1);
-        } else {
-          result += `${item}\n`;
-        }
+      if (!response.ok) {
+        throw new Error('Failed to fetch preview');
       }
-    } else if (typeof data === 'object' && data !== null) {
-      for (const [key, value] of Object.entries(data)) {
-        if (value === undefined) continue;
-        result += `${spaces}${key}: `;
-        if (typeof value === 'object' && value !== null) {
-          result += '\n' + convertToYAML(value, indent + 1);
-        } else if (typeof value === 'string' && value.includes('\n')) {
-          result += `|\n${value.split('\n').map((l: string) => `${spaces}  ${l}`).join('\n')}\n`;
-        } else {
-          result += `${JSON.stringify(value)}\n`;
-        }
+
+      const contentType = response.headers.get('content-type');
+
+      if (contentType?.includes('application/json')) {
+        const data = await response.json();
+        // For JSON, show formatted preview
+        const preview = data.data || data;
+        setPreviewData(JSON.stringify(preview, null, 2));
+      } else {
+        // For CSV/YAML, show raw text
+        const text = await response.text();
+        setPreviewData(text);
       }
-    } else {
-      result = `${data}`;
-    }
-
-    return result;
-  };
-
-  // Get formatted export content
-  const getExportContent = () => {
-    switch (exportFormat) {
-      case 'csv':
-        return convertToCSV(exportData);
-      case 'yaml':
-        return convertToYAML(exportData);
-      default:
-        return JSON.stringify(exportData, null, 2);
+    } catch (error) {
+      console.error('Preview error:', error);
+      setPreviewData('Failed to load preview');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
-  const getFileExtension = () => {
-    switch (exportFormat) {
-      case 'csv': return 'csv';
-      case 'yaml': return 'yaml';
-      default: return 'json';
+  // Load preview when options change
+  useEffect(() => {
+    if (rules.length > 0) {
+      fetchPreview();
     }
-  };
+  }, [exportFormat, selectedJurisdictions, includeMetadata, includeRaw, rules.length]);
 
-  const getMimeType = () => {
-    switch (exportFormat) {
-      case 'csv': return 'text/csv';
-      case 'yaml': return 'text/yaml';
-      default: return 'application/json';
+  const handleDownload = async () => {
+    setIsExporting(true);
+    try {
+      const url = buildExportUrl(exportFormat);
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+
+      // Get the blob
+      const blob = await response.blob();
+
+      // Create download link
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `rulesharvester-export-${new Date().toISOString().split('T')[0]}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      addLog(`Export downloaded: ${exportFormat.toUpperCase()}`, 'success');
+      toast.success(`Downloaded ${exportFormat.toUpperCase()} file`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export failed';
+      addLog(`Export failed: ${message}`, 'error');
+      toast.error(message);
+    } finally {
+      setIsExporting(false);
     }
   };
 
   const handleCopy = async () => {
+    if (!previewData) return;
+
     try {
-      await navigator.clipboard.writeText(getExportContent());
-      setCopied(true);
+      await navigator.clipboard.writeText(previewData);
       addLog('Export data copied to clipboard', 'success');
       toast.success('Copied to clipboard');
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       addLog('Failed to copy to clipboard', 'error');
       toast.error('Failed to copy');
     }
   };
 
-  const handleDownload = () => {
-    const content = getExportContent();
-    const blob = new Blob([content], { type: getMimeType() });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rulesharvester-export-${new Date().toISOString().split('T')[0]}.${getFileExtension()}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    addLog('Export file downloaded', 'success');
-    toast.success(`Downloaded ${getFileExtension().toUpperCase()} file`);
-  };
+  // Extract metadata from preview for stats
+  const exportMetadata = useMemo(() => {
+    if (!previewData) return null;
+    try {
+      const data = JSON.parse(previewData);
+      return data.system_metadata || null;
+    } catch {
+      return null;
+    }
+  }, [previewData]);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -233,14 +168,18 @@ export function ExportView() {
         <div>
           <h1 className="text-2xl font-bold">Export Rules</h1>
           <p className="text-text-secondary">
-            Download extracted rules in multiple formats
+            Download extracted rules via server-side export
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={handleCopy}>
-            {copied ? 'Copied!' : 'Copy to Clipboard'}
+          <Button variant="secondary" onClick={handleCopy} disabled={!previewData}>
+            Copy to Clipboard
           </Button>
-          <Button onClick={handleDownload} disabled={filteredRules.length === 0}>
+          <Button
+            onClick={handleDownload}
+            disabled={filteredRules.length === 0 || isExporting}
+            isLoading={isExporting}
+          >
             Download {exportFormat.toUpperCase()}
           </Button>
         </div>
@@ -371,7 +310,9 @@ export function ExportView() {
       <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardContent className="text-center">
-            <p className="text-3xl font-bold text-amber-400">{filteredRules.length}</p>
+            <p className="text-3xl font-bold text-amber-400">
+              {exportMetadata?.node_count ?? filteredRules.length}
+            </p>
             <p className="text-sm text-text-secondary">
               {selectedJurisdictions.size === 0 ? 'Total Rules' : 'Selected Rules'}
             </p>
@@ -380,7 +321,8 @@ export function ExportView() {
         <Card>
           <CardContent className="text-center">
             <p className="text-3xl font-bold text-blue-400">
-              {exportData.jurisdictions.length}
+              {exportMetadata?.jurisdiction_count ??
+                (selectedJurisdictions.size || [...new Set(filteredRules.map(r => r.jurisdictionId))].length)}
             </p>
             <p className="text-sm text-text-secondary">Jurisdictions</p>
           </CardContent>
@@ -398,9 +340,9 @@ export function ExportView() {
         <Card>
           <CardContent className="text-center">
             <p className="text-3xl font-bold text-purple-400">
-              {(getExportContent().length / 1024).toFixed(1)}KB
+              {exportMetadata?.integrity_hash?.slice(0, 8) || '---'}
             </p>
-            <p className="text-sm text-text-secondary">Export Size</p>
+            <p className="text-sm text-text-secondary">SHA-256 Hash</p>
           </CardContent>
         </Card>
       </div>
@@ -409,12 +351,21 @@ export function ExportView() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <span>Export Preview</span>
-            <Badge variant="info">{exportFormat.toUpperCase()}</Badge>
+            <span>Export Preview (Server-Generated)</span>
+            <div className="flex items-center gap-2">
+              <Badge variant="info">{exportFormat.toUpperCase()}</Badge>
+              {exportMetadata?.integrity_hash && (
+                <Badge variant="success">SHA-256 Verified</Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {filteredRules.length === 0 ? (
+          {previewLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size="lg" />
+            </div>
+          ) : filteredRules.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-text-muted mb-4">No rules to export</p>
               <p className="text-sm text-text-secondary">
@@ -425,7 +376,7 @@ export function ExportView() {
             </div>
           ) : (
             <pre className="bg-surface-elevated p-4 rounded-lg overflow-auto max-h-[400px] text-sm font-mono text-text-secondary">
-              {getExportContent()}
+              {previewData || 'Loading...'}
             </pre>
           )}
         </CardContent>

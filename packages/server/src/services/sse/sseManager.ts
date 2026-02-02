@@ -119,6 +119,33 @@ class SSEManager {
     this.broadcast(event);
   }
 
+  sendWatchtowerScanStarted(frequency?: string): void {
+    const event: SSEEvent = {
+      type: 'watchtower_scan_started' as SSEEvent['type'],
+      payload: { frequency: frequency || 'manual' },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendWatchtowerScanComplete(totalChecked: number, changesDetected: number, relevantChanges: number): void {
+    const event: SSEEvent = {
+      type: 'watchtower_scan_complete' as SSEEvent['type'],
+      payload: { totalChecked, changesDetected, relevantChanges },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
+  sendWatchtowerChangeDetected(jurisdictionId: string, description?: string): void {
+    const event: SSEEvent = {
+      type: 'watchtower_change_detected' as SSEEvent['type'],
+      payload: { jurisdictionId, description },
+      timestamp: new Date(),
+    };
+    this.broadcast(event);
+  }
+
   getClientCount(): number {
     return this.clients.size;
   }
