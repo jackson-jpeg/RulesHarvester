@@ -35,7 +35,7 @@ export function JurisdictionDetail() {
         <div className="text-center">
           <h2 className="text-xl font-semibold mb-2">No Jurisdiction Selected</h2>
           <p className="text-text-secondary mb-4">Select a jurisdiction from the dashboard</p>
-          <Button onClick={() => setActiveTab('dashboard')}>Go to Dashboard</Button>
+          <Button onClick={() => setActiveTab('home')}>Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -67,10 +67,10 @@ export function JurisdictionDetail() {
           <h1 className="text-2xl font-bold">{selectedJurisdiction.name}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => { selectJurisdiction(null); setActiveTab('dashboard'); }}>
+          <Button variant="ghost" onClick={() => { selectJurisdiction(null); setActiveTab('home'); }}>
             Back to Dashboard
           </Button>
-          <Button onClick={() => setActiveTab('crawler')}>
+          <Button onClick={() => setActiveTab('collect')}>
             Extract More Rules
           </Button>
         </div>
@@ -159,7 +159,7 @@ export function JurisdictionDetail() {
             {jurisdictionRules.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-text-muted mb-4">No rules extracted yet</p>
-                <Button onClick={() => setActiveTab('crawler')}>Start Extraction</Button>
+                <Button onClick={() => setActiveTab('collect')}>Start Extraction</Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -365,7 +365,7 @@ function RuleRow({ rule }: { rule: RuleTemplate }) {
 
   const handleClick = async () => {
     await fetchRuleById(rule.id);
-    setActiveTab('verify');
+    setActiveTab('library');
   };
 
   const triggerLabel = TRIGGER_TYPE_LABELS[rule.triggerType] || rule.triggerType;

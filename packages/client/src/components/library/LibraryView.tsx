@@ -5,6 +5,8 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Badge } from '../ui/Badge';
 import { Skeleton } from '../ui/Spinner';
+import { RuleDetailPanel } from './RuleDetailPanel';
+import { ExportModal } from './ExportModal';
 import { useRulesStore } from '../../store/rulesStore';
 import { useUIStore } from '../../store/uiStore';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -41,13 +43,21 @@ export function LibraryView() {
     setFilters,
     setPage,
     selectRule,
+    selectedRule,
+    clearSelectedRule,
   } = useRulesStore();
-  const { setActiveTab, addLog } = useUIStore();
+  const { setActiveTab, addLog, librarySelectedRuleId, setLibrarySelectedRuleId } = useUIStore();
 
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
   const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search || '');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const debouncedSearch = useDebounce(searchInput, 300);
+
+  // Get the currently displayed rule for the panel
+  const panelRule = librarySelectedRuleId
+    ? rules.find((r) => r.id === librarySelectedRuleId) || selectedRule
+    : null;
 
   useEffect(() => {
     fetchRules();
@@ -67,7 +77,12 @@ export function LibraryView() {
 
   const handleRuleClick = (rule: RuleTemplate) => {
     selectRule(rule);
-    setActiveTab('verify');
+    setLibrarySelectedRuleId(rule.id);
+  };
+
+  const handleClosePanel = () => {
+    clearSelectedRule();
+    setLibrarySelectedRuleId(null);
   };
 
   const handleSearch = (search: string) => {
@@ -120,16 +135,26 @@ export function LibraryView() {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Rule Library</h1>
-          <p className="text-text-secondary">
-            {pagination.total} rules extracted
-          </p>
+    <div className="flex h-full">
+      {/* Main Content */}
+      <div className={`flex-1 space-y-6 animate-fadeIn overflow-y-auto ${panelRule ? 'pr-4' : ''}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Rule Library</h1>
+            <p className="text-text-secondary">
+              {pagination.total} rules extracted
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setIsExportModalOpen(true)}>
+              Export
+            </Button>
+            <Button variant="primary" onClick={() => setActiveTab('collect')}>
+              + New Rule
+            </Button>
+          </div>
         </div>
-      </div>
 
       {/* Filters */}
       <Card padding="sm">
@@ -228,7 +253,7 @@ export function LibraryView() {
             <Button
               variant="secondary"
               className="mt-4"
-              onClick={() => setActiveTab('crawler')}
+              onClick={() => setActiveTab('collect')}
             >
               Start Extracting Rules
             </Button>
@@ -274,6 +299,17 @@ export function LibraryView() {
           )}
         </>
       )}
+      </div>
+
+      {/* Rule Detail Panel (slide-over) */}
+      {panelRule && (
+        <div className="w-96 flex-shrink-0">
+          <RuleDetailPanel rule={panelRule} onClose={handleClosePanel} />
+        </div>
+      )}
+
+      {/* Export Modal */}
+      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
     </div>
   );
 }

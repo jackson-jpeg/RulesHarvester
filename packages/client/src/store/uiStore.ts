@@ -2,24 +2,18 @@ import { create } from 'zustand';
 import type { SystemLog, AIAgent } from '@rulesharvester/shared';
 import { AgentStatus, LogType } from '@rulesharvester/shared';
 
-type TabId =
-  | 'dashboard'
-  | 'crawler'
-  | 'library'
-  | 'workflow'
-  | 'conflicts'
-  | 'verify'
-  | 'export'
-  | 'settings'
-  | 'jurisdiction-detail'
-  | 'watchtower'
-  | 'discovery'
-  | 'inbox';
+// Simplified 5-tab navigation
+type TabId = 'home' | 'collect' | 'library' | 'monitor' | 'settings';
+
+// Sub-tabs within each main view
+type CollectSubTab = 'jurisdictions' | 'rules' | 'jobs';
+type MonitorSubTab = 'watchtower' | 'conflicts' | 'coverage';
 
 type SSEConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 interface UIState {
   activeTab: TabId;
+  activeSubTab: CollectSubTab | MonitorSubTab | null;
   systemLogs: SystemLog[];
   agents: AIAgent[];
   isAutoHarvesting: boolean;
@@ -27,9 +21,14 @@ interface UIState {
   sseConnectionStatus: SSEConnectionStatus;
   conflictCount: number;
   inboxCount: number;
+  activeJobCount: number;
+
+  // Scoped selection - only persists while on Library tab
+  librarySelectedRuleId: string | null;
 
   // Actions
   setActiveTab: (tab: TabId) => void;
+  setActiveSubTab: (subTab: CollectSubTab | MonitorSubTab | null) => void;
   addLog: (message: string, type: SystemLog['type'], metadata?: Record<string, unknown>) => void;
   clearLogs: () => void;
   updateAgentStatus: (agentId: string, status: AIAgent['status'], task?: string) => void;
@@ -41,12 +40,17 @@ interface UIState {
   setInboxCount: (count: number) => void;
   incrementInboxCount: () => void;
   decrementInboxCount: () => void;
+  setActiveJobCount: (count: number) => void;
+  setLibrarySelectedRuleId: (ruleId: string | null) => void;
 }
+
+export type { TabId, CollectSubTab, MonitorSubTab };
 
 const MAX_LOGS = 50;
 
-export const useUIStore = create<UIState>((set) => ({
-  activeTab: 'dashboard',
+export const useUIStore = create<UIState>((set, get) => ({
+  activeTab: 'home',
+  activeSubTab: null,
   systemLogs: [],
   agents: [
     { id: 'agent-formalist', persona: 'Formalist', status: AgentStatus.IDLE },
@@ -58,8 +62,17 @@ export const useUIStore = create<UIState>((set) => ({
   sseConnectionStatus: 'connecting',
   conflictCount: 0,
   inboxCount: 0,
+  activeJobCount: 0,
+  librarySelectedRuleId: null,
 
-  setActiveTab: (tab) => set({ activeTab: tab }),
+  setActiveTab: (tab) => set({
+    activeTab: tab,
+    activeSubTab: null,
+    // Clear library selection when leaving library tab
+    librarySelectedRuleId: tab === 'library' ? get().librarySelectedRuleId : null,
+  }),
+
+  setActiveSubTab: (subTab) => set({ activeSubTab: subTab }),
 
   addLog: (message, type, metadata) => {
     set((state) => {
@@ -101,4 +114,8 @@ export const useUIStore = create<UIState>((set) => ({
   incrementInboxCount: () => set((state) => ({ inboxCount: state.inboxCount + 1 })),
 
   decrementInboxCount: () => set((state) => ({ inboxCount: Math.max(0, state.inboxCount - 1) })),
+
+  setActiveJobCount: (count) => set({ activeJobCount: count }),
+
+  setLibrarySelectedRuleId: (ruleId) => set({ librarySelectedRuleId: ruleId }),
 }));
