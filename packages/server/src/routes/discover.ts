@@ -4,68 +4,9 @@ import { asyncHandler, NotFoundError, ValidationError } from '../middleware/erro
 import { validateBody } from '../middleware/validate.js';
 import { scraperService } from '../services/scraper/scraperService.js';
 import { BatchAcquireRequestSchema } from '@rulesharvester/shared';
+import { validatePublicUrl } from '../utils/ssrfProtection.js';
 
 export const discoverRouter = Router();
-
-// SSRF Protection: Block private/internal IP ranges and localhost
-function isPrivateOrLocalUrl(urlString: string): boolean {
-  try {
-    const url = new URL(urlString);
-    const hostname = url.hostname.toLowerCase();
-
-    // Block localhost variations
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-      return true;
-    }
-
-    // Block common internal hostnames
-    if (hostname === 'metadata' || hostname === 'metadata.google.internal' || hostname.endsWith('.internal')) {
-      return true;
-    }
-
-    // Block private IP ranges (RFC 1918 + link-local)
-    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    if (ipv4Match) {
-      const [, a, b] = ipv4Match.map(Number);
-      // 10.x.x.x (Class A private)
-      if (a === 10) return true;
-      // 172.16.x.x - 172.31.x.x (Class B private)
-      if (a === 172 && b >= 16 && b <= 31) return true;
-      // 192.168.x.x (Class C private)
-      if (a === 192 && b === 168) return true;
-      // 169.254.x.x (link-local)
-      if (a === 169 && b === 254) return true;
-      // 127.x.x.x (loopback)
-      if (a === 127) return true;
-      // 0.x.x.x (invalid)
-      if (a === 0) return true;
-    }
-
-    return false;
-  } catch {
-    return true; // Invalid URL = block it
-  }
-}
-
-function validatePublicUrl(urlString: string): void {
-  // First check format
-  let url: URL;
-  try {
-    url = new URL(urlString);
-  } catch {
-    throw new ValidationError('Invalid URL format');
-  }
-
-  // Only allow http/https
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new ValidationError('Only HTTP and HTTPS URLs are allowed');
-  }
-
-  // Block private/internal URLs (SSRF protection)
-  if (isPrivateOrLocalUrl(urlString)) {
-    throw new ValidationError('URLs pointing to private or internal networks are not allowed');
-  }
-}
 
 // Scrape a specific URL for rule content
 discoverRouter.post(
@@ -78,7 +19,8 @@ discoverRouter.post(
     }
 
     // Validate URL format and block private/internal URLs (SSRF protection)
-    validatePublicUrl(url);
+    // Also validates DNS resolution to prevent DNS rebinding attacks
+    await validatePublicUrl(url, { resolveDns: true });
 
     const result = await scraperService.scrapeUrl(url);
 
@@ -135,7 +77,8 @@ discoverRouter.post(
     }
 
     // Validate URL format and block private/internal URLs (SSRF protection)
-    validatePublicUrl(baseUrl);
+    // Also validates DNS resolution to prevent DNS rebinding attacks
+    await validatePublicUrl(baseUrl, { resolveDns: true });
 
     if (maxPages > 50) {
       throw new ValidationError('maxPages cannot exceed 50');

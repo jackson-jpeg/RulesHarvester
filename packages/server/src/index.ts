@@ -20,6 +20,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { sseManager } from './services/sse/sseManager.js';
 import { watchtowerService } from './services/watchtower/watchtowerService.js';
+import { stalenessChecker } from './services/watchtower/stalenessChecker.js';
 import { cartographerScheduler } from './services/cartographer/cartographerScheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -297,6 +298,75 @@ function initializeWatchtowerScheduler() {
   console.log('Watchtower scheduler initialized (Daily: 6:00 AM UTC, Weekly: Sundays 3:00 AM UTC)');
 }
 
+// Staleness check endpoint - manual trigger
+app.post('/api/watchtower/staleness-check', async (_req, res) => {
+  try {
+    const status = stalenessChecker.getStatus();
+
+    if (status.isRunning) {
+      res.json({
+        success: false,
+        message: 'Staleness check already in progress',
+        data: status,
+      });
+      return;
+    }
+
+    // Run in background, don't await
+    stalenessChecker.triggerManualCheck().catch((error) => {
+      console.error('Staleness check failed:', error);
+    });
+
+    res.json({
+      success: true,
+      message: 'Staleness check triggered',
+      data: {
+        ...status,
+        thresholdDays: status.thresholdDays,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to trigger staleness check',
+    });
+  }
+});
+
+// Staleness status endpoint
+app.get('/api/watchtower/staleness-status', async (_req, res) => {
+  try {
+    const status = stalenessChecker.getStatus();
+
+    // Get count of stale jurisdictions
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - status.thresholdDays);
+
+    const staleCount = await prisma.jurisdiction.count({
+      where: {
+        autoSyncEnabled: true,
+        OR: [
+          { lastSyncedAt: null },
+          { lastSyncedAt: { lt: thresholdDate } },
+        ],
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        staleJurisdictionsCount: staleCount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get staleness status',
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`RulesHarvester server running on port ${PORT}`);
@@ -306,6 +376,7 @@ app.listen(PORT, () => {
   // Initialize schedulers
   initializeWatchtowerScheduler();
   cartographerScheduler.initialize();
+  stalenessChecker.initialize();
 });
 
 export default app;
