@@ -92,7 +92,31 @@ Analyze the provided webpage and determine:
 4. Does it have a local rules or rules of procedure section?
 5. What's the URL to the rules page if you can find it?
 
-Only mark isLegitimateCourtSite as true if this is an OFFICIAL court website with a .gov, .us, or official state domain.
+CRITICAL: You must REJECT the following types of sites (set isLegitimateCourtSite to false):
+1. Legal blogs (even if they discuss court rules) - look for blog post dates, author bylines, comments
+2. News aggregators (LawSite, Above The Law, Law360, JD Supra, etc.)
+3. Legal research platforms (Westlaw, LexisNexis, Justia, FindLaw, Casetext, CourtListener, Fastcase)
+4. Law firm websites (look for "Contact Us", attorney profiles, "Practice Areas")
+5. Legal education sites (law school websites, legal CLE providers)
+6. Wikipedia or other encyclopedias
+7. Social media or forum sites
+8. Legal services marketplaces (Avvo, LegalZoom, Rocket Lawyer)
+
+Strong indicators of REJECT:
+- Contains advertisements or sponsored content
+- Has "blog" or "news" in URL or title
+- Is a commercial .com domain (unless official court uses .com, which is rare)
+- Has legal services advertisements
+- Shows attorney ratings or reviews
+- Contains "About the Author" or author bios
+- Has article publication dates typical of blog posts
+- Site discusses court rules rather than publishing them officially
+
+Only mark isLegitimateCourtSite as true if this is an OFFICIAL court website with:
+- A .gov, .us, or official state domain
+- Official court branding/seal
+- Published by the judiciary or court administration
+- Contains official, authoritative rule text (not commentary or analysis)
 
 Use the submit_court_analysis tool to submit your analysis.`;
 

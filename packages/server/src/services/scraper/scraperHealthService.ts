@@ -13,9 +13,108 @@ interface ScrapeResultRecord {
   statusCode?: number;
 }
 
+interface HealingHistoryEntry {
+  timestamp: number;
+  success: boolean;
+  previousConfidence?: number;
+  newConfidence?: number;
+  error?: string;
+}
+
+// Maximum healing history entries to keep per jurisdiction
+const MAX_HEALING_HISTORY = 10;
+
+// Default minimum confidence threshold for healing success
+const DEFAULT_MIN_CONFIDENCE = 50;
+
+// Confidence adjustment based on recent healing success rate
+const CONFIDENCE_ADJUSTMENT_STEP = 5;
+
 class ScraperHealthService {
   private healingInProgress: Set<string> = new Set();
   private lastHealingAttempt: Map<string, number> = new Map();
+  // Adaptive learning: track healing history per jurisdiction
+  private healingHistory: Map<string, HealingHistoryEntry[]> = new Map();
+
+  /**
+   * Get adaptive minimum confidence threshold based on healing history
+   * Lower threshold if recent healing attempts were successful
+   */
+  private getAdaptiveMinConfidence(jurisdictionId: string): number {
+    const history = this.healingHistory.get(jurisdictionId) || [];
+
+    if (history.length < 3) {
+      return DEFAULT_MIN_CONFIDENCE;
+    }
+
+    // Look at last 5 healing attempts
+    const recentAttempts = history.slice(-5);
+    const successCount = recentAttempts.filter((h) => h.success).length;
+    const successRate = successCount / recentAttempts.length;
+
+    // If success rate is high, we can lower the threshold slightly
+    // If success rate is low, increase the threshold
+    if (successRate >= 0.8) {
+      return DEFAULT_MIN_CONFIDENCE - CONFIDENCE_ADJUSTMENT_STEP;
+    } else if (successRate >= 0.6) {
+      return DEFAULT_MIN_CONFIDENCE;
+    } else if (successRate >= 0.4) {
+      return DEFAULT_MIN_CONFIDENCE + CONFIDENCE_ADJUSTMENT_STEP;
+    } else {
+      return DEFAULT_MIN_CONFIDENCE + CONFIDENCE_ADJUSTMENT_STEP * 2;
+    }
+  }
+
+  /**
+   * Record a healing attempt result
+   */
+  private recordHealingResult(
+    jurisdictionId: string,
+    success: boolean,
+    previousConfidence?: number,
+    newConfidence?: number,
+    error?: string
+  ): void {
+    const history = this.healingHistory.get(jurisdictionId) || [];
+
+    history.push({
+      timestamp: Date.now(),
+      success,
+      previousConfidence,
+      newConfidence,
+      error,
+    });
+
+    // Keep only recent entries
+    if (history.length > MAX_HEALING_HISTORY) {
+      history.shift();
+    }
+
+    this.healingHistory.set(jurisdictionId, history);
+  }
+
+  /**
+   * Get healing statistics for a jurisdiction
+   */
+  getHealingStats(jurisdictionId: string): {
+    totalAttempts: number;
+    successRate: number;
+    lastAttempt?: Date;
+    adaptiveConfidenceThreshold: number;
+  } {
+    const history = this.healingHistory.get(jurisdictionId) || [];
+    const successCount = history.filter((h) => h.success).length;
+
+    return {
+      totalAttempts: history.length,
+      successRate: history.length > 0 ? successCount / history.length : 0,
+      lastAttempt:
+        history.length > 0
+          ? new Date(history[history.length - 1].timestamp)
+          : undefined,
+      adaptiveConfidenceThreshold: this.getAdaptiveMinConfidence(jurisdictionId),
+    };
+  }
 
   /**
    * Record the result of a scrape attempt
@@ -152,8 +251,11 @@ class ScraperHealthService {
         jurisdictionId
       );
 
+      // Get adaptive confidence threshold based on healing history
+      const minConfidence = this.getAdaptiveMinConfidence(jurisdictionId);
+
       // Check if the new config has reasonable confidence
-      if (newConfig.confidence && newConfig.confidence >= 50) {
+      if (newConfig.confidence && newConfig.confidence >= minConfidence) {
         // Success - update config version and reset failures
         await prisma.jurisdiction.update({
           where: { id: jurisdictionId },
@@ -167,7 +269,15 @@ class ScraperHealthService {
         sseManager.sendScraperHealingComplete(jurisdictionId, jurisdiction.name);
         logger.info(
           `Scraper: Self-healing successful for ${jurisdiction.name} ` +
-            `(confidence: ${newConfig.confidence}%)`
+            `(confidence: ${newConfig.confidence}%, threshold: ${minConfidence}%)`
+        );
+
+        // Record successful healing
+        this.recordHealingResult(
+          jurisdictionId,
+          true,
+          undefined,
+          newConfig.confidence
         );
 
         this.healingInProgress.delete(jurisdictionId);
@@ -175,9 +285,18 @@ class ScraperHealthService {
       }
 
       // Low confidence - consider it a failure
-      throw new Error(
-        `Re-discovery produced low confidence config (${newConfig.confidence}%)`
+      const failureError = `Re-discovery produced low confidence config (${newConfig.confidence}%, threshold: ${minConfidence}%)`;
+
+      // Record failed healing due to low confidence
+      this.recordHealingResult(
+        jurisdictionId,
+        false,
+        undefined,
+        newConfig.confidence,
+        failureError
       );
+
+      throw new Error(failureError);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -185,6 +304,11 @@ class ScraperHealthService {
       logger.error(
         `Scraper: Self-healing failed for ${jurisdiction.name}: ${errorMessage}`
       );
+
+      // Record the healing failure (if not already recorded for low confidence)
+      if (!errorMessage.includes('low confidence config')) {
+        this.recordHealingResult(jurisdictionId, false, undefined, undefined, errorMessage);
+      }
 
       sseManager.sendScraperHealingFailed(
         jurisdictionId,

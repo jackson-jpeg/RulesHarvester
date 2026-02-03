@@ -100,6 +100,8 @@ export const API_ENDPOINTS = {
   // Watchtower
   WATCHTOWER_STATUS: '/api/watchtower/status',
   WATCHTOWER_SCAN: '/api/watchtower/scan',
+  WATCHTOWER_STALENESS_CHECK: '/api/watchtower/staleness-check',
+  WATCHTOWER_STALENESS_STATUS: '/api/watchtower/staleness-status',
 
   // SSE Events
   EVENTS: '/api/events',
@@ -138,10 +140,11 @@ export const CARTOGRAPHER_RATE_LIMIT = 10; // discoveries per minute
 export const CARTOGRAPHER_MAX_RESULTS = 50; // max jurisdictions per discovery run
 
 // Confidence thresholds for automated decision routing
+// Raised MANUAL_REVIEW/AUTO_REJECT to 70% for better data quality
 export const CONFIDENCE_THRESHOLDS = {
   AUTO_APPROVE: 90, // >= 90% auto-approved
-  MANUAL_REVIEW: 50, // 50-89% goes to inbox for manual review
-  AUTO_REJECT: 50, // < 50% auto-rejected or flagged
+  MANUAL_REVIEW: 70, // 70-89% goes to inbox for manual review
+  AUTO_REJECT: 70, // < 70% auto-rejected or flagged
 };
 
 // Scraper health configuration

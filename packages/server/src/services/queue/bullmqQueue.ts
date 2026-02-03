@@ -60,6 +60,7 @@ if (queueEvents) {
 
 // Worker with concurrency control
 // Note: Per-domain throttling is handled by job delays based on jurisdictionId
+// Limiter tuned for ~30s average job time: allow 10 jobs per minute
 const worker = connection ? new Worker<ExtractionJobData>(
   'extraction',
   async (job) => {
@@ -69,8 +70,8 @@ const worker = connection ? new Worker<ExtractionJobData>(
     connection,
     concurrency: 5, // Process up to 5 jobs concurrently
     limiter: {
-      max: 1,           // Max 1 job
-      duration: 2000,   // Per 2 seconds
+      max: 10,          // Allow up to 10 jobs
+      duration: 60000,  // Per 60 seconds
     },
   }
 ) : null;

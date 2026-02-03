@@ -21,6 +21,18 @@ const COMPLEXITY_THRESHOLD_COMPLEX = 7;
 // Maximum queue size for in-memory fallback (prevents unbounded memory growth)
 const MAX_QUEUE_SIZE = 100;
 
+// Queue status returned instead of throwing errors
+export interface QueueStatus {
+  isAccepting: boolean;
+  queueSize: number;
+  maxSize: number;
+  estimatedWaitMs: number;
+  warning?: string;
+}
+
+// Average processing time per job in ms (used for wait time estimation)
+const AVERAGE_JOB_TIME_MS = 30000;
+
 // In-memory queue for local development (no Redis required)
 // When Redis is available, jobs are routed to BullMQ instead
 class InMemoryQueue {
@@ -29,22 +41,55 @@ class InMemoryQueue {
   private concurrency = 3;
   private activeJobs = 0;
 
-  async add(_name: string, data: ExtractionJobData) {
+  /**
+   * Get current queue status
+   */
+  getStatus(): QueueStatus {
+    const queueSize = this.jobs.length;
+    const isAtCapacity = queueSize >= MAX_QUEUE_SIZE;
+    const jobsAhead = queueSize + this.activeJobs;
+    const estimatedWaitMs = Math.ceil(jobsAhead / this.concurrency) * AVERAGE_JOB_TIME_MS;
+
+    return {
+      isAccepting: !isAtCapacity,
+      queueSize,
+      maxSize: MAX_QUEUE_SIZE,
+      estimatedWaitMs,
+      warning: isAtCapacity
+        ? `Queue at capacity (${queueSize}/${MAX_QUEUE_SIZE}). Job queued but processing may be delayed.`
+        : undefined,
+    };
+  }
+
+  async add(_name: string, data: ExtractionJobData): Promise<QueueStatus> {
     // If BullMQ is available, use it for per-domain throttling
     if (extractionQueueBullMQ) {
       await addExtractionJob(data);
-      return;
+      return {
+        isAccepting: true,
+        queueSize: 0,
+        maxSize: MAX_QUEUE_SIZE,
+        estimatedWaitMs: 0,
+      };
     }
 
-    // Enforce max queue size for in-memory fallback
-    if (this.jobs.length >= MAX_QUEUE_SIZE) {
-      throw new Error(`Queue full: maximum ${MAX_QUEUE_SIZE} pending jobs allowed. Please wait for existing jobs to complete or configure Redis.`);
+    // Get status before adding
+    const status = this.getStatus();
+
+    // Log warning if at capacity but still accept (backpressure instead of rejection)
+    if (!status.isAccepting) {
+      console.warn(
+        `Queue at capacity (${this.jobs.length}/${MAX_QUEUE_SIZE}). ` +
+          `Job ${data.jobId} queued anyway. Estimated wait: ${Math.round(status.estimatedWaitMs / 1000)}s`
+      );
     }
 
-    // Otherwise, use in-memory queue
+    // Always accept the job (backpressure approach)
     this.jobs.push(data);
     console.log(`Job queued (in-memory): ${data.jobId} (queue size: ${this.jobs.length})`);
     this.processNext();
+
+    return this.getStatus();
   }
 
   private async processNext() {

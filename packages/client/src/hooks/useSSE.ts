@@ -14,6 +14,48 @@ const RECONNECT_MULTIPLIER = 2;
 // Event deduplication config
 const MAX_PROCESSED_EVENTS = 100;
 
+// Maximum SSE message size (64KB) to prevent memory issues
+const MAX_SSE_MESSAGE_SIZE = 64 * 1024;
+
+/**
+ * Circular buffer for efficient event deduplication
+ * Maintains a fixed-size buffer with O(1) add and O(1) lookup
+ */
+interface CircularBuffer {
+  keys: string[];
+  set: Set<string>;
+  index: number;
+  capacity: number;
+}
+
+function createCircularBuffer(capacity: number): CircularBuffer {
+  return {
+    keys: new Array(capacity).fill(''),
+    set: new Set(),
+    index: 0,
+    capacity,
+  };
+}
+
+function addToCircularBuffer(buffer: CircularBuffer, key: string): void {
+  // Remove the old key at current index from set
+  const oldKey = buffer.keys[buffer.index];
+  if (oldKey) {
+    buffer.set.delete(oldKey);
+  }
+
+  // Add new key
+  buffer.keys[buffer.index] = key;
+  buffer.set.add(key);
+
+  // Move to next slot (circular)
+  buffer.index = (buffer.index + 1) % buffer.capacity;
+}
+
+function isInCircularBuffer(buffer: CircularBuffer, key: string): boolean {
+  return buffer.set.has(key);
+}
+
 /**
  * Generate a unique event key for deduplication
  */
@@ -28,8 +70,10 @@ export function useSSE() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY);
   const isUnmountedRef = useRef(false);
-  // Track processed event keys for deduplication
-  const processedEventsRef = useRef<Set<string>>(new Set());
+  // Circular buffer for efficient event deduplication (O(1) operations, fixed memory)
+  const processedEventsRef = useRef<CircularBuffer>(createCircularBuffer(MAX_PROCESSED_EVENTS));
+  // AbortController for resync fetch operations
+  const resyncAbortRef = useRef<AbortController | null>(null);
 
   const { updateJobProgress, completeJob, failJob, fetchJobs } = useJobsStore();
   const { addRule, fetchRules } = useRulesStore();
@@ -37,16 +81,31 @@ export function useSSE() {
 
   // Resync state after reconnection
   const resyncState = useCallback(async () => {
+    // Cancel any existing resync operation
+    if (resyncAbortRef.current) {
+      resyncAbortRef.current.abort();
+    }
+    resyncAbortRef.current = new AbortController();
+    const { signal } = resyncAbortRef.current;
+
     try {
       await Promise.all([fetchJobs(), fetchRules()]);
-      // Fetch conflict count
-      const response = await fetch(`${API_BASE}/conflicts`);
+
+      // Check if aborted before making another request
+      if (signal.aborted) return;
+
+      // Fetch conflict count with abort support
+      const response = await fetch(`${API_BASE}/conflicts`, { signal });
       if (response.ok) {
         const data = await response.json();
         const unresolved = data.data?.items?.filter((c: { status: string }) => c.status === 'UNRESOLVED').length || 0;
         setConflictCount(unresolved);
       }
     } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to resync state after SSE reconnect:', error);
     }
   }, [fetchJobs, fetchRules, setConflictCount]);
@@ -105,6 +164,12 @@ export function useSSE() {
       if (isUnmountedRef.current) return;
 
       try {
+        // Validate message size to prevent memory issues from malicious/malformed data
+        if (event.data.length > MAX_SSE_MESSAGE_SIZE) {
+          console.warn(`SSE message too large (${event.data.length} bytes), skipping`);
+          return;
+        }
+
         const data = JSON.parse(event.data);
 
         // Skip 'connected' events from deduplication check
@@ -112,23 +177,13 @@ export function useSSE() {
           // Generate event key for deduplication
           const eventKey = generateEventKey(data);
 
-          // Check if we've already processed this event
-          if (processedEventsRef.current.has(eventKey)) {
+          // Check if we've already processed this event (O(1) lookup)
+          if (isInCircularBuffer(processedEventsRef.current, eventKey)) {
             return; // Skip duplicate event
           }
 
-          // Track this event
-          processedEventsRef.current.add(eventKey);
-
-          // Limit the size of processed events set
-          if (processedEventsRef.current.size > MAX_PROCESSED_EVENTS) {
-            // Remove oldest entries (first entries in Set iteration order)
-            const entries = Array.from(processedEventsRef.current);
-            const toRemove = entries.slice(0, entries.length - MAX_PROCESSED_EVENTS);
-            for (const key of toRemove) {
-              processedEventsRef.current.delete(key);
-            }
-          }
+          // Track this event (O(1) add with automatic old entry removal)
+          addToCircularBuffer(processedEventsRef.current, eventKey);
         }
 
         switch (data.type) {
@@ -300,6 +355,12 @@ export function useSSE() {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
+      }
+
+      // Abort any pending resync operations
+      if (resyncAbortRef.current) {
+        resyncAbortRef.current.abort();
+        resyncAbortRef.current = null;
       }
 
       setSSEConnectionStatus('disconnected');

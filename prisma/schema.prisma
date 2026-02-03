@@ -145,6 +145,8 @@ model RuleConflict {
   ruleA Rule @relation("ConflictRuleA", fields: [ruleAId], references: [id])
   ruleB Rule @relation("ConflictRuleB", fields: [ruleBId], references: [id])
 
+  // Prevent duplicate conflicts between the same pair of rules
+  @@unique([ruleAId, ruleBId])
   @@index([status])
   @@index([ruleAId])
   @@index([ruleBId])
