@@ -22,6 +22,7 @@ import { sseManager } from './services/sse/sseManager.js';
 import { watchtowerService } from './services/watchtower/watchtowerService.js';
 import { stalenessChecker } from './services/watchtower/stalenessChecker.js';
 import { cartographerScheduler } from './services/cartographer/cartographerScheduler.js';
+import { extractionQueueBullMQ, connection } from './services/queue/bullmqQueue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -199,7 +200,23 @@ app.use(errorHandler);
 // Graceful shutdown
 async function shutdown() {
   console.log('Shutting down...');
+
+  // Close BullMQ queue and worker
+  if (extractionQueueBullMQ) {
+    await extractionQueueBullMQ.close();
+    console.log('BullMQ queue closed');
+  }
+
+  // Close Prisma connection
   await prisma.$disconnect();
+  console.log('Prisma disconnected');
+
+  // Close Redis connection (shared by BullMQ)
+  if (connection) {
+    await connection.quit();
+    console.log('Redis connection closed');
+  }
+
   process.exit(0);
 }
 
