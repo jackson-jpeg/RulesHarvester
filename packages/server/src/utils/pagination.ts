@@ -5,6 +5,7 @@ export interface PaginationParams {
   pageSize: number;
   sortBy: string;
   sortOrder: 'asc' | 'desc';
+  cursor?: string;
 }
 
 export interface PaginatedResult<T> {
@@ -33,7 +34,9 @@ export function parsePaginationParams(
   const sortBy = allowedSortFields.includes(requestedSortBy) ? requestedSortBy : defaultSortBy;
   const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
 
-  return { page, pageSize, sortBy, sortOrder };
+  const cursor = validateCursor(req.query.cursor as string);
+
+  return { page, pageSize, sortBy, sortOrder, ...(cursor && { cursor }) };
 }
 
 /**
@@ -62,4 +65,36 @@ export function buildPaginatedResponse<T>(
  */
 export function getSkip(pagination: Pick<PaginationParams, 'page' | 'pageSize'>): number {
   return (pagination.page - 1) * pagination.pageSize;
+}
+
+/**
+ * Validate cursor token to prevent SQL injection
+ * @param cursor Cursor token from request
+ * @returns Validated cursor or undefined if invalid
+ */
+export function validateCursor(cursor?: string): string | undefined {
+  if (!cursor) return undefined;
+  
+  // Only allow base64url characters (A-Z, a-z, 0-9, -, _)
+  if (!/^[A-Za-z0-9_-]+$/.test(cursor)) {
+    return undefined;
+  }
+  
+  // Limit length to prevent buffer overflow attacks
+  if (cursor.length > 512) {
+    return undefined;
+  }
+  
+  return cursor;
+}
+
+/**
+ * Validate cursor token for database queries
+ * @param cursor Cursor token to validate
+ * @throws Error if cursor is invalid
+ */
+export function assertValidCursor(cursor?: string): asserts cursor is string | undefined {
+  if (cursor !== undefined && !validateCursor(cursor)) {
+    throw new Error('Invalid cursor token format');
+  }
 }
