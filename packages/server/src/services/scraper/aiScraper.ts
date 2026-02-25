@@ -4,6 +4,8 @@ import { prisma } from '../../index.js';
 import type { ScraperConfig } from '@rulesharvester/shared';
 import { ScraperDiscoveryResponseSchema } from '@rulesharvester/shared';
 import { GENERIC_CONFIG } from './courtSites.js';
+import { logger } from '../../utils/logger.js';
+import { validatePublicUrl, secureFetch } from '../../utils/ssrfProtection.js';
 
 const anthropic = new Anthropic();
 
@@ -89,17 +91,39 @@ async function discoverSelectorsWithClaude(
   url: string,
   jurisdictionName: string
 ): Promise<ScraperConfig> {
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
-    system: CARTOGRAPHER_SYSTEM,
-    tools: [CARTOGRAPHER_TOOL],
-    tool_choice: { type: 'tool', name: 'submit_scraper_config' },
-    messages: [{
-      role: 'user',
-      content: `Analyze this court website HTML for ${jurisdictionName} (${url}):\n\n${cleanedHtml}`
-    }],
-  });
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: CARTOGRAPHER_SYSTEM,
+      tools: [CARTOGRAPHER_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_scraper_config' },
+      messages: [{
+        role: 'user',
+        content: `Analyze this court website HTML for ${jurisdictionName} (${url}):\n\n${cleanedHtml}`
+      }],
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+        logger.error('Claude API timeout during selector discovery', {
+          jurisdictionName,
+          url,
+          error: error.message,
+          type: 'claude_timeout'
+        });
+        throw new Error(`Claude API timeout: ${error.message}`);
+      }
+      logger.error('Claude API error during selector discovery', {
+        jurisdictionName,
+        url,
+        error: error.message,
+        type: 'claude_api_error'
+      });
+    }
+    throw error;
+  }
 
   // Extract tool result
   const toolUse = response.content.find(block => block.type === 'tool_use');
@@ -143,16 +167,56 @@ export async function getScrapingStrategy(
   });
 
   if (jurisdiction?.scraperConfig) {
-    console.log(`Using cached scraper config for ${jurisdiction.name}`);
+    logger.info('Using cached scraper config', {
+      jurisdictionName: jurisdiction.name,
+      jurisdictionId
+    });
     return jurisdiction.scraperConfig as unknown as ScraperConfig;
   }
 
   // 2. Fetch and clean HTML
-  console.log(`Discovering scraper config for ${jurisdiction?.name || jurisdictionId}...`);
-  const response = await fetch(url, {
-    headers: { 'User-Agent': 'RulesHarvester/1.0' },
+  logger.info('Discovering scraper config', {
+    jurisdictionName: jurisdiction?.name || jurisdictionId,
+    url
   });
-  const html = await response.text();
+
+  let html: string;
+  try {
+    await validatePublicUrl(url, { resolveDns: true });
+    const response = await secureFetch(url, {
+      timeout: 15000,
+      userAgent: 'RulesHarvester/1.0'
+    });
+    
+    if (response.status >= 400) {
+      logger.error('Failed to fetch page for discovery', {
+        url,
+        status: response.status,
+        type: 'fetch_error'
+      });
+      throw new Error(`HTTP ${response.status}: ${response.statusText || 'Unknown error'}`);
+    }
+    
+    html = response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('SSR') || error.message.includes('private')) {
+        logger.error('SSRF protection blocked URL', {
+          url,
+          error: error.message,
+          type: 'ssrf_block'
+        });
+        throw new Error(`SSRF protection: ${error.message}`);
+      }
+      logger.error('Network error during discovery', {
+        url,
+        error: error.message,
+        type: 'network_error'
+      });
+    }
+    throw error;
+  }
+  
   const cleanedHtml = cleanHtmlForLLM(html);
 
   // 3. Ask Claude to discover selectors
@@ -169,10 +233,18 @@ export async function getScrapingStrategy(
       data: { scraperConfig: JSON.parse(JSON.stringify(config)) },
     });
 
-    console.log(`Discovered and cached config with ${config.confidence}% confidence`);
+    logger.info('Successfully discovered and cached config', {
+      jurisdictionName: jurisdiction?.name || jurisdictionId,
+      confidence: config.confidence,
+      url
+    });
     return config;
   } catch (error) {
-    console.error('Cartographer discovery failed:', error);
+    logger.errorWithStack('Cartographer discovery failed, falling back to generic config', error, {
+      jurisdictionName: jurisdiction?.name || jurisdictionId,
+      url,
+      type: 'discovery_failure'
+    });
 
     // Fall back to generic config
     const fallback: ScraperConfig = {
@@ -180,13 +252,20 @@ export async function getScrapingStrategy(
       baseUrl: new URL(url).origin,
       discoveredAt: new Date().toISOString(),
       confidence: 0,
-      discoveryReasoning: `Discovery failed: ${error}. Using generic fallback.`,
+      discoveryReasoning: `Discovery failed: ${error instanceof Error ? error.message : String(error)}. Using generic fallback.`,
     };
 
-    await prisma.jurisdiction.update({
-      where: { id: jurisdictionId },
-      data: { scraperConfig: JSON.parse(JSON.stringify(fallback)) },
-    });
+    try {
+      await prisma.jurisdiction.update({
+        where: { id: jurisdictionId },
+        data: { scraperConfig: JSON.parse(JSON.stringify(fallback)) },
+      });
+    } catch (dbError) {
+      logger.errorWithStack('Failed to save fallback config to database', dbError, {
+        jurisdictionId,
+        type: 'database_error'
+      });
+    }
 
     return fallback;
   }
@@ -210,12 +289,18 @@ export async function validateSelectors(
   };
 
   try {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'RulesHarvester/1.0' },
-      signal: AbortSignal.timeout(10000),
+    await validatePublicUrl(url, { resolveDns: true });
+    const response = await secureFetch(url, {
+      timeout: 10000,
+      userAgent: 'RulesHarvester/1.0'
     });
 
-    if (!response.ok) {
+    if (response.status >= 400) {
+      logger.warn('Selector validation failed due to HTTP error', {
+        url,
+        status: response.status,
+        type: 'validation_fetch_error'
+      });
       return {
         isValid: false,
         matchCounts,
@@ -223,7 +308,7 @@ export async function validateSelectors(
       };
     }
 
-    const html = await response.text();
+    const html = response.data;
     const $ = cheerio.load(html);
 
     // Check required selectors
@@ -263,6 +348,20 @@ export async function validateSelectors(
 
     return { isValid, matchCounts, errors };
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('SSR') || error.message.includes('private')) {
+        logger.error('SSRF protection blocked URL during validation', {
+          url,
+          error: error.message,
+          type: 'ssrf_block_validation'
+        });
+      } else {
+        logger.errorWithStack('Error during selector validation', error, {
+          url,
+          type: 'validation_error'
+        });
+      }
+    }
     return {
       isValid: false,
       matchCounts,
