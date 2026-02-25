@@ -81,8 +81,63 @@ const aiLimiter = rateLimit({
 app.use(generalLimiter);
 
 // Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+  const checks = {
+    database: false,
+    redis: false,
+    anthropic: false,
+  };
+
+  try {
+    // Check database via Prisma
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = true;
+  } catch (error) {
+    console.error('Health check: Database unreachable:', error);
+  }
+
+  try {
+    // Check Redis via BullMQ connection
+    if (extractionQueueBullMQ && extractionQueueBullMQ.client) {
+      await extractionQueueBullMQ.client.ping();
+      checks.redis = true;
+    } else {
+      // Redis not configured, mark as healthy
+      checks.redis = true;
+    }
+  } catch (error) {
+    console.error('Health check: Redis unreachable:', error);
+  }
+
+  try {
+    // Check Anthropic API via lightweight ping
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+    // Accept 400 (invalid request) as reachable since API responded
+    checks.anthropic = response.status < 500;
+  } catch (error) {
+    console.error('Health check: Anthropic API unreachable:', error);
+  }
+
+  const allHealthy = checks.database && checks.redis && checks.anthropic;
+  const statusCode = allHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    status: allHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    checks,
+  });
 });
 
 // SSE endpoint for real-time updates
