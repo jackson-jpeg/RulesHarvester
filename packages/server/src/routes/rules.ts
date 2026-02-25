@@ -2,10 +2,15 @@ import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
 import { validateBody } from '../middleware/validate.js';
+import { createPostRateLimiter } from '../middleware/rateLimiter.js';
 import { UpdateRuleRequestSchema } from '@rulesharvester/shared';
 import type { z } from 'zod';
 
 export const rulesRouter = Router();
+
+// POST /rules rate limit: 20 requests per 10 minutes
+const rulesPostLimiter = createPostRateLimiter('rules');
+rulesRouter.post('*', rulesPostLimiter);
 
 // Whitelist of allowed sort fields to prevent injection
 const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'ruleCode', 'confidenceScore', 'name', 'triggerType'] as const;
