@@ -2,11 +2,16 @@ import { Router } from 'express';
 import { prisma } from '../index.js';
 import { asyncHandler, NotFoundError, ValidationError } from '../middleware/errorHandler.js';
 import { validateBody } from '../middleware/validate.js';
+import { createPostRateLimiter } from '../middleware/rateLimiter.js';
 import { scraperService } from '../services/scraper/scraperService.js';
 import { BatchAcquireRequestSchema } from '@rulesharvester/shared';
 import { validatePublicUrl } from '../utils/ssrfProtection.js';
 
 export const discoverRouter = Router();
+
+// POST /discover rate limit: 20 requests per 10 minutes
+const discoverPostLimiter = createPostRateLimiter('discover');
+discoverRouter.post('*', discoverPostLimiter);
 
 // Scrape a specific URL for rule content
 discoverRouter.post(
