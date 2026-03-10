@@ -27,7 +27,7 @@ export const useJobsStore = create<JobsState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const jobs = await api.get<ExtractionJob[]>('/jobs');
-      set({ jobs, isLoading: false });
+      set({ jobs: jobs as ExtractionJob[], isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch jobs',
